@@ -10,7 +10,7 @@ export function Navbar() {
       <div className="flex items-center gap-3">
         <Link to="/" className="flex items-center gap-3 group">
           <span className="font-display text-xl font-bold text-foreground tracking-tight group-hover:text-primary transition-colors">TRUE COST</span>
-          <span className="font-mono text-[10px] border border-border px-2 py-0.5 text-muted-foreground group-hover:border-primary/50 group-hover:text-primary transition-colors">T-OS</span>
+          <span className="font-mono text-[10px] border border-border px-2 py-0.5 text-muted-foreground group-hover:border-primary/50 group-hover:text-primary transition-colors">TC-01</span>
         </Link>
       </div>
 

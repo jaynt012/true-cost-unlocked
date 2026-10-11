@@ -87,6 +87,7 @@ function isCompleteMoneyMatch(text: string, match: RegExpMatchArray): boolean {
 export function numericClauseAt(text: string, position: number): Clause {
   const clause = clauseAt(text, position);
   const lineStart = text.lastIndexOf("\n", position - 1) + 1;
+  if (/^\s*\d+(?:\.\d+)*[.)]?\s+[A-Z]/.test(text.slice(lineStart, position))) return clause;
   if (text.slice(lineStart, position).trim() && !new RegExp(`^(?:${CURRENCY_TOKEN})\\s*$`, "i").test(text.slice(lineStart, position).trim())) return clause;
   const previousEnd = lineStart > 0 ? lineStart - 1 : 0;
   const previousStart = text.lastIndexOf("\n", previousEnd - 1) + 1;
@@ -133,7 +134,8 @@ export function segmentClauses(text: string): Clause[] {
   const addLine = (line: string, offset: number) => {
     if (config.segmentation.headingPatterns?.some((pattern) => new RegExp(pattern).test(line.trim()))) return;
     const labelStarts: number[] = [];
-    const labels = new RegExp(String.raw`(?:^|[\s,;])([A-Za-z][A-Za-z0-9 /()_-]{1,42}):(?=\s*(?:${CURRENCY_TOKEN}|[$₹€£¥]?\s*\d))`, "g");
+    const maximumLabelCharacters = extractionRules.maximumLabelCharacters ?? 120;
+    const labels = new RegExp(String.raw`(?:^|[\s,;])([A-Za-z][A-Za-z0-9 /()_'’&.-]{1,${maximumLabelCharacters}}):(?=\s*(?:${CURRENCY_TOKEN}|[$₹€£¥]?\s*\d))`, "g");
     for (const match of line.matchAll(labels)) {
       const labelStart = (match.index ?? 0) + (match[0].length - match[1].length - 1);
       if (labelStart > 0) labelStarts.push(labelStart);
@@ -241,7 +243,10 @@ function rateContext(text: string, start: number, end: number, clause: Clause): 
     if (modifier) selected = modifier;
   }
   const context = `${before}${text.slice(start, end)}${after.split(new RegExp(extractionRules.rateContextBreakPattern, "i"))[0]}`;
-  const role = selected?.role ?? (new RegExp(extractionRules.rateCurrentPattern, "i").test(before) ? "base" : null);
+  const promotionalRule = config.rateRoleRules?.find((rule) => rule.role === "promotional");
+  const deferredContext = Boolean(promotionalRule && new RegExp(promotionalRule.pattern, "i").test(context)
+    && /\b(?:deferred|retroactive(?:ly)?)\b/i.test(context));
+  const role = deferredContext ? "promotional" : selected?.role ?? (new RegExp(extractionRules.rateCurrentPattern, "i").test(before) ? "base" : null);
   return { role, context };
 }
 
@@ -468,7 +473,9 @@ export function extractStatedEMI(text: string, candidates = extractAmountCandida
     const contextualPayment = Boolean(nearest && !/[\d%]/.test(before.slice(nearest.index! + nearest[0].length)));
     if (!ownPaymentLabel && !contextualPayment) return false;
     const labelContext = nearest ? before.slice(Math.max(0, nearest.index! - 18)) : candidate.label;
-    return !new RegExp(extractionRules.paymentExcludedLabelPattern, "i").test(labelContext);
+    if (new RegExp(extractionRules.paymentExcludedLabelPattern, "i").test(labelContext)) return false;
+    const feePosition = Math.max(before.toLowerCase().lastIndexOf(" fee"), before.toLowerCase().lastIndexOf(" charge"));
+    return !nearest || feePosition <= nearest.index!;
   });
   const distinct = [...new Map(eligible.map((candidate) => [candidate.value, candidate])).values()];
   const best = distinct[0];

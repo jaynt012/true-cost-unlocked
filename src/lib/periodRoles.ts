@@ -1,7 +1,9 @@
 import rules from "@/data/analysisRules.json";
+import scheduleRules from "@/data/scheduleRules.json";
 import { normalizeDuration, type ParsedDuration } from "./financial";
 import { inspectLegalStructure } from "./documentStructure";
 import { segmentClauses } from "./analysisEngine";
+import { countedSchedules, frequenciesIn, NUMBER_PATTERN, parseWrittenNumber } from "./scheduleParsing";
 
 export type PeriodRole = "term" | "trial_promo" | "grace" | "cancellation" | "notice" | "cure" | "unclassified";
 export interface PeriodCandidate {
@@ -20,6 +22,7 @@ interface PeriodRoleConfig {
   contextCharacters: number;
   roles: Array<{ role: PeriodRole; pattern: string; priority: number }>;
   explicitTermPattern: string;
+  genericTermContextPattern?: string;
   derivedSchedule: { suppressRoles: PeriodRole[] };
 }
 
@@ -45,7 +48,13 @@ export function classifyPeriodRoles(text: string): PeriodCandidate[] {
     const from = Math.max(leftBoundary, start - config.contextCharacters);
     const to = Math.min(rightBoundary, end + config.contextCharacters);
     const context = text.slice(from, to);
-    const roles = config.roles.flatMap((entry) => Array.from(context.matchAll(new RegExp(entry.pattern, "gi"))).map((roleMatch) => {
+    const nonTermRules = scheduleRules.nonTermDurationRoles as Array<{ role: PeriodRole; pattern: string; priority: number }>;
+    const nonTerm = nonTermRules.flatMap((entry) => Array.from(context.matchAll(new RegExp(entry.pattern, "gi")), (roleMatch) => {
+      const roleStart = from + roleMatch.index!;
+      const roleEnd = roleStart + roleMatch[0].length;
+      return { ...entry, distance: Math.max(start - roleEnd, roleStart - end, 0) };
+    })).sort((a, b) => a.distance - b.distance || b.priority - a.priority)[0];
+    const roles = config.roles.flatMap((entry) => Array.from(context.matchAll(new RegExp(entry.pattern, "gi")), (roleMatch) => {
       const roleStart = from + roleMatch.index!;
       const roleEnd = roleStart + roleMatch[0].length;
       const distance = Math.max(start - roleEnd, roleStart - end, 0);
@@ -57,8 +66,39 @@ export function classifyPeriodRoles(text: string): PeriodCandidate[] {
     if (!Number.isFinite(value) || value <= 0 || multiplier === undefined) continue;
     const section = sections.find((entry) => entry.start <= start && start < entry.end);
     const sectionRole = section ? config.roles.filter((entry) => new RegExp(entry.pattern, "i").test(section.title)).sort((a, b) => b.priority - a.priority)[0]?.role : undefined;
-    const role = roles[0]?.role ?? sectionRole ?? "unclassified";
+    const hasGenericConnector = /\b(?:for|over)\b/i.test(context);
+    const hasLoanContext = config.genericTermContextPattern ? new RegExp(config.genericTermContextPattern, "i").test(context) : false;
+    const termRole = roles.find((entry) => entry.role === "term" && (!hasGenericConnector || hasLoanContext));
+    const role = nonTerm?.role ?? termRole?.role ?? roles.find((entry) => entry.role !== "term")?.role ?? sectionRole ?? "unclassified";
     candidates.push({ value, unit, months: value * multiplier, role, source: clause.text, span: [start, end], confidence: role === "unclassified" ? 0.25 : 0.95 });
+  }
+  // A disclosed number of payments plus its cadence is a contractual term even
+  // when the document never uses the word "term" (common in TILA disclosures).
+  for (const schedule of countedSchedules(text)) {
+    if (!schedule.frequency || schedule.months === null) continue;
+    const duplicate = candidates.some((candidate) => candidate.role === "term" && Math.abs(candidate.months - schedule.months!) < 0.01);
+    if (duplicate) continue;
+    const span: [number, number] = [schedule.position, schedule.position + schedule.source.length];
+    candidates.push({ value: schedule.count, unit: `${schedule.frequency.unit} payments`, months: schedule.months,
+      role: "term", source: schedule.source, span, confidence: 0.96 });
+  }
+  const labeledCount = new RegExp(`\\b(?:${scheduleRules.countLabelPattern})\\s*[:=–—-]?\\s*(${NUMBER_PATTERN})\\b`, "gi");
+  for (const match of text.matchAll(labeledCount)) {
+    const count = parseWrittenNumber(match[1]);
+    if (!count || !Number.isInteger(count)) continue;
+    const afterStart = match.index! + match[0].length;
+    const tail = text.slice(afterStart, afterStart + scheduleRules.maximumFrequencyDistance);
+    const lineBreak = tail.indexOf("\n");
+    const window = lineBreak >= 0 ? tail.slice(0, lineBreak) : tail;
+    const frequency = frequenciesIn(window).find((candidate) =>
+      new RegExp(scheduleRules.paymentTimingPattern, "i").test(window.slice(Math.max(0, candidate.position - 85), candidate.position + candidate.source.length))
+      && !new RegExp(scheduleRules.nonTermPattern, "i").test(window.slice(Math.max(0, candidate.position - 60), candidate.position + candidate.source.length + 20)));
+    if (!frequency) continue;
+    const months = count * frequency.months;
+    if (candidates.some((candidate) => candidate.role === "term" && Math.abs(candidate.months - months) < 0.01)) continue;
+    const span: [number, number] = [match.index!, afterStart + frequency.position + frequency.source.length];
+    candidates.push({ value: count, unit: `${frequency.unit} payments`, months, role: "term",
+      source: text.slice(...span).trim(), span, confidence: 0.96 });
   }
   return candidates;
 }
@@ -81,6 +121,10 @@ export function selectLoanTerm(text: string, candidates = classifyPeriodRoles(te
   const explicit = stated.filter((candidate) => new RegExp(config.explicitTermPattern, "i").test(candidate.source)
     || sections.some((section) => section.start <= candidate.span[0] && candidate.span[0] < section.end && new RegExp(config.explicitTermPattern, "i").test(section.title)));
   if (explicit.length) return rank(explicit, config.explicitTermPattern) as ParsedDuration;
+
+  const countDerived = stated.filter((candidate) => /\b(?:number|no\.?|count)\s+(?:of\s+)?(?:payments?|installments?|instalments?)\b/i.test(candidate.source)
+    && /\b(?:monthly|weekly|fortnightly|biweekly|daily|quarterly|annually|yearly|every\s+\d+\s+(?:days?|weeks?|months?|years?))\b/i.test(candidate.source));
+  if (countDerived.length) return rank(countDerived, String.raw`\b(?:number|no\.?|count)\s+(?:of\s+)?(?:payments?|installments?|instalments?)\b`) as ParsedDuration;
 
   const schedule = normalizeDuration(text);
   const scheduleStart = schedule ? text.indexOf(schedule.source) : -1;

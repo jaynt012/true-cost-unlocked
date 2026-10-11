@@ -52,7 +52,7 @@ export function AnalysisDashboard({ context, onPrincipalSelect }: Props) {
 export function AnalysisNumbers({ context }: Props) {
   const money = (value: number) => formatCurrency(value, context.currencyCode);
   const metrics = [
-    { label: "Principal", value: context.principal === null ? null : money(context.principal) },
+    { label: "Principal", value: context.principal === null ? null : `${money(context.principal)}${context.principalField.needsReview ? " (unverified)" : ""}` },
     { label: "Monthly payment", value: context.emi === null ? null : money(context.emi) },
     { label: "Scheduled payments", value: context.totalPayment === null ? null : money(context.totalPayment) },
     { label: context.rateField.rateType === "deferred" ? "Conditional deferred APR" : context.rateField.rateRole === "penalty" ? "Penalty APR" : context.rateField.rateRole === "promotional" ? "Promotional rate" : "Annual rate", value: context.rateField.value === null ? null : `${context.rateField.value}%` },

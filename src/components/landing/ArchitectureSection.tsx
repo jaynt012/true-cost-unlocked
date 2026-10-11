@@ -61,8 +61,8 @@ function ModuleCard({ mod, i }: { mod: any; i: number }) {
       <span className="font-mono text-[10px] tracking-widest text-primary/60 mb-6 block relative z-10">{mod.id}</span>
       {mod.hasApiTag && (
         <div className="absolute top-6 right-6 font-mono text-[10px] text-muted-foreground space-y-1 z-10">
-          <div className="text-primary/60">AI MODE: OPTIONAL</div>
-          <div className="text-primary/40">LOCAL FALLBACK: ENABLED</div>
+          <div className="text-primary/60">AI MODE </div>
+          <div className="text-primary/40">Pro Exclusive</div>
         </div>
       )}
       <div className="flex items-start gap-4 relative z-10">

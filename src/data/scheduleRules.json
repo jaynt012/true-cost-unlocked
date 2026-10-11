@@ -27,7 +27,12 @@
   "termConnectorPattern": "for|over|within",
   "nonTermPattern": "grace|late|overdue|cure|cancel(?:lation)?|cooling[- ]off|withdraw|rescind|opt[- ]out|notice|notify|trial|promo(?:tional)?|introductory|teaser|offer\\s+expires?",
   "nonTermDurationRoles": [
-    { "role": "grace", "pattern": "late(?:\\s+(?:fee|charge|payment))?|overdue|delinquen(?:t|cy)|past[- ]due", "priority": 45 }
+    { "role": "grace", "pattern": "grace|late(?:\\s+(?:fee|charge|payment))?|overdue|delinquen(?:t|cy)|past[- ]due|default", "priority": 50 },
+    { "role": "cure", "pattern": "\\bcure\\b|remedy\\s+(?:a\\s+)?(?:breach|default)", "priority": 60 },
+    { "role": "cancellation", "pattern": "cancel(?:lation)?|cooling[- ]off|withdraw|rescind|opt[- ]out|prepay(?:ment)?", "priority": 55 },
+    { "role": "notice", "pattern": "\\bnotice\\b|notify|notification", "priority": 45 },
+    { "role": "trial_promo", "pattern": "\\btrial\\b|promo(?:tional)?|introductory|teaser|offer\\s+(?:is\\s+)?(?:expires?|valid)|expires?\\s+in|offer\\s+ends?", "priority": 40 },
+    { "role": "unclassified", "pattern": "release|disburs(?:e|ement)|fund(?:s|ing)", "priority": 25 }
   ],
   "feeLabelPattern": "fees?|charges?|premiums?|insurance|tax(?:es)?|penalt(?:y|ies)|deposits?|down\\s+payment",
   "purchasedTotalPattern": "purchased\\s+amount|receivables\\s+purchased|total\\s+repayment|total\\s+of\\s+payments",

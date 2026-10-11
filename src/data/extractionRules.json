@@ -13,6 +13,7 @@
   "ratePeriodBeforePattern": "\\b(daily|weekly|fortnightly|monthly|annually|yearly|annual)\\s+(?:rate|interest)(?:\\s+rate)?[^\\d%]*$",
   "rateContextDistance": 100,
   "labelContextDistance": 90,
+  "maximumLabelCharacters": 120,
   "rangeConfidence": 0.25,
   "paymentConfidence": 0.9,
   "rateContextBreakPattern": "[,;]|\\b(?:and|but|plus|then|thereafter)\\b",

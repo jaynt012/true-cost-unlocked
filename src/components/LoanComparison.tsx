@@ -8,7 +8,7 @@ interface LoanParams { amount: number | ""; rate: number | ""; duration: number 
 interface Props { context: AnalysisContext }
 
 export function LoanComparison({ context }: Props) {
-  const analyzedAmount = context.principal ?? "";
+  const analyzedAmount = context.principalField.needsReview ? "" : context.principal ?? "";
   const analyzedRate = context.rateField.value !== null && context.rateField.rateType !== "deferred" ? context.rateField.value : "";
   const analyzedDuration = context.termField.value ?? "";
   const fromContext = (): LoanParams => ({

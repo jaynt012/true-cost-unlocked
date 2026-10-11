@@ -141,7 +141,8 @@ export function checkPrincipalPlausibility(text: string, principal: number | nul
   }
   for (const candidate of candidates) {
     if (["negated", "waived/zero", "hypothetical"].includes(classifyPolarity(candidate.source))) continue;
-    const paymentLabel = new RegExp(policy.paymentPattern, "i").test(candidate.label);
+    const aggregatePayment = /\b(?:total|aggregate|sum|finance)\b/i.test(candidate.label + " " + candidate.source);
+    const paymentLabel = !aggregatePayment && new RegExp(policy.paymentPattern, "i").test(candidate.label);
     const feeLabel = new RegExp(policy.feePattern, "i").test(candidate.label);
     if (feeLabel || (!paymentLabel && new RegExp(policy.feePattern, "i").test(candidate.source))) {
       add("fee", candidate.value, candidate.label, candidate.source);
@@ -209,9 +210,12 @@ function extractValuesNormalized(text: string, aiFallback?: AIExtractedFields): 
   const resolvedAmounts = resolveDerivedAmountCandidates(text, amountCandidates);
   const rateCandidates = extractRateCandidates(text);
   const docType = classifyDocument(text);
+  const explicitPrincipalLabel = /\b(?:amount\s+financed|principal|loan\s+amount|amount\s+borrowed|amount\s+(?:advanced|funded)|net\s+proceeds|advance\s+amount)\b/i;
   const principalCandidates = docType.type === "merchant_cash_advance"
-    ? resolvedAmounts.candidates.filter((candidate) => /net\s+proceeds|advance\s+amount|amount\s+(?:financed|advanced|funded)|principal/i.test(candidate.label))
-    : resolvedAmounts.candidates;
+    ? resolvedAmounts.candidates.filter((candidate) => explicitPrincipalLabel.test(candidate.label))
+    : docType.type === "advance_fee_scam"
+      ? resolvedAmounts.candidates.filter((candidate) => explicitPrincipalLabel.test(candidate.label) || /\b(?:loan|credit|advance)\b/i.test(candidate.label + " " + candidate.source))
+      : resolvedAmounts.candidates;
   const resolutionConfig = (rules as unknown as { constraintResolution?: { financedAddOnPattern?: string; financedAddOnLabelPattern?: string } }).constraintResolution;
   const financedPattern = resolutionConfig?.financedAddOnPattern;
   const addOnPattern = resolutionConfig?.financedAddOnLabelPattern;
@@ -260,7 +264,13 @@ function extractValuesNormalized(text: string, aiFallback?: AIExtractedFields): 
         start: annualEvidence.position, end: annualEvidence.position + annualEvidence.source.length, source: annualEvidence.source, assumption: null });
     }
   }
-  const statedEMI = extractStatedEMI(text, amountCandidates);
+  const paymentSchedule = extractInstallmentSchedule(text);
+  let statedEMI = extractStatedEMI(text, amountCandidates);
+  if (statedEMI.value === null && paymentSchedule) {
+    statedEMI = { value: paymentSchedule.amount, source: paymentSchedule.source, confidence: 0.9,
+      alternatives: amountCandidates.filter((candidate) => Math.abs(candidate.value - paymentSchedule.amount) < 0.01),
+      needsReview: false };
+  }
   let resolvedStatedEMI = statedEMI;
   const paymentFact = aiFallback?.payment;
   const paymentEvidence = locateFallbackEvidence(text, paymentFact?.evidence ?? null);
@@ -299,8 +309,13 @@ function extractValuesNormalized(text: string, aiFallback?: AIExtractedFields): 
   if (constraintAssignment.matchedPayment && constraintAssignment.principal && constraintAssignment.rate && constraintAssignment.term) {
     parsedTerm = { months: constraintAssignment.term.months, source: constraintAssignment.term.source, confidence: "high" };
   }
-  const baseRate = constraintAssignment.matchedPayment && constraintAssignment.rate
-    ? constraintAssignment.rate : rateCandidates.find((candidate) => candidate.role === "base") ?? null;
+  const distinctBaseRates = [...new Map(rateCandidates.filter((candidate) => candidate.role === "base" && !candidate.ambiguous)
+    .map((candidate) => [candidate.value, candidate])).values()];
+  const ambiguousBaseRate = rateCandidates.some((candidate) => candidate.role === "base" && candidate.ambiguous);
+  const constrainedBaseRate = constraintAssignment.matchedPayment && constraintAssignment.rate && !constraintAssignment.rate.ambiguous
+    ? constraintAssignment.rate : null;
+  const baseRate = constrainedBaseRate ?? (distinctBaseRates.length === 1 ? distinctBaseRates[0] : null);
+  const conflictingBaseRates = !constrainedBaseRate && distinctBaseRates.length > 1;
   const promotionalRate = rateCandidates.find((candidate) => candidate.role === "promotional") ?? null;
   const deferredRate = rateCandidates.find((candidate) => candidate.role === "promotional"
     && /deferred|retroactiv|conditional/i.test(candidate.source)) ?? null;
@@ -325,8 +340,8 @@ function extractValuesNormalized(text: string, aiFallback?: AIExtractedFields): 
     value: interestRate,
     source: rateSource,
     confidence: rateConfidence,
-    alternatives: rateCandidates.map((candidate) => ({ value: candidate.value, label: candidate.role + " rate", source: candidate.source, position: candidate.start, confidence: candidate.assumption ? 0.82 : 0.9, score: 0 })),
-    needsReview: false,
+    alternatives: rateCandidates.map((candidate) => ({ value: candidate.value, label: (candidate.ambiguous ? "ambiguous range " : "") + candidate.role + " rate", source: candidate.source, position: candidate.start, confidence: candidate.ambiguous ? 0.25 : candidate.assumption ? 0.82 : 0.9, score: 0 })),
+    needsReview: conflictingBaseRates || ambiguousBaseRate,
     rateType,
     type: (selectedRate?.type ?? conditionalRate?.type ?? "unspecified") !== "unspecified"
       ? (selectedRate?.type ?? conditionalRate?.type ?? "unspecified") : extractRateType(text),
@@ -334,9 +349,16 @@ function extractValuesNormalized(text: string, aiFallback?: AIExtractedFields): 
     rateRole,
     basisAssumption,
   };
-  const paymentSchedule = extractInstallmentSchedule(text);
   const crossCheckEMI = paymentSchedule && paymentSchedule.intervalUnit !== "month" ? null : resolvedStatedEMI.value;
   let principalField = scorePrincipalCandidates(assignmentCandidates, interestRateIsConditional ? null : interestRate, parsedTerm, crossCheckEMI, docType.type);
+  if (docType.type === "advance_fee_scam") {
+    const advertised = resolvedAmounts.candidates.filter((candidate) => /\b(?:loan|credit|advance)\b/i.test(candidate.label + " " + candidate.source));
+    if (advertised.length) {
+      const candidate = [...advertised].sort((a, b) => b.score - a.score || a.position - b.position)[0];
+      principalField = { value: candidate.value, source: candidate.source, confidence: 0.25,
+        alternatives: advertised.map((item) => ({ ...item, label: "Advertised amount; funding principal unverified" })), needsReview: true };
+    }
+  }
   if (docType.type !== "credit_card" && constraintAssignment.matchedPayment && constraintAssignment.principal) {
     const selected = constraintAssignment.principal;
     principalField = { value: selected.value, source: selected.source, confidence: 0.99,
@@ -364,6 +386,13 @@ function extractValuesNormalized(text: string, aiFallback?: AIExtractedFields): 
   const addConstraintMismatch = (id: string, label: string, evidence: string, position: number, message: string) => {
     if (!constraintMismatches.some((item) => item.id === id && item.evidence === evidence)) constraintMismatches.push({ id, label, evidence, position, message });
   };
+  const tolerance = (rules as unknown as { constraintResolution?: { totalTolerance?: number } }).constraintResolution?.totalTolerance ?? 0.01;
+  const statedPaymentTotal = amountCandidates.find((candidate) => /total of payments|total repayment|total payable/i.test(candidate.label + " " + candidate.source));
+  const statedFinanceCharge = amountCandidates.find((candidate) => /finance charge|interest charge|total interest/i.test(candidate.label + " " + candidate.source));
+  const disclosedPrincipal = amountCandidates.filter((candidate) => /amount financed|principal|loan amount|amount borrowed/i.test(candidate.label))
+    .sort((a, b) => b.score - a.score)[0];
+  const disclosureMathSupportsFields = Boolean(disclosedPrincipal && statedPaymentTotal && statedFinanceCharge && baseRate && parsedTerm
+    && Math.abs(disclosedPrincipal.value + statedFinanceCharge.value - statedPaymentTotal.value) <= Math.max(1, statedPaymentTotal.value * 0.005));
   if (constraintAssignment.matchedPayment === false && constraintAssignment.principal && constraintAssignment.rate && constraintAssignment.term
     && constraintAssignment.statedPayment !== null && constraintAssignment.expectedPayment !== null) {
     const selectedPrincipal = constraintAssignment.principal.value;
@@ -375,14 +404,22 @@ function extractValuesNormalized(text: string, aiFallback?: AIExtractedFields): 
     addConstraintMismatch("emi_apr", "Stated APR / payment mismatch", evidence, position,
       `Stated APR ${statedAPR}% and principal ${selectedPrincipal} imply a payment of ${constraintAssignment.expectedPayment.toFixed(2)}, but the document states ${constraintAssignment.statedPayment.toFixed(2)} (${impliedLabel}). Competing candidates: principal ${selectedPrincipal}, APR ${statedAPR}%, term ${constraintAssignment.term.months} months.`);
     const cap = (rules as unknown as { plausibility?: { confidenceCap?: number } }).plausibility?.confidenceCap ?? 0.35;
-    principalField = { ...principalField, value: null, source: null, confidence: Math.min(cap, principalField.confidence), needsReview: true };
-    rateField = { ...rateField, value: null, source: null, confidence: Math.min(cap, rateField.confidence), needsReview: true };
-    termField = { ...termField, value: null, source: null, confidence: Math.min(cap, termField.confidence), needsReview: true };
-    interestRate = null;
-    loanAmount = null;
+    if (disclosureMathSupportsFields) {
+      principalField = { ...principalField, value: disclosedPrincipal!.value, source: disclosedPrincipal!.source,
+        confidence: Math.max(disclosedPrincipal!.confidence, 0.95), needsReview: false };
+      rateField = { ...rateField, value: baseRate!.value, source: baseRate!.source, confidence: Math.max(rateField.confidence, 0.95), needsReview: false };
+      termField = { ...termField, value: parsedTerm!.months, source: parsedTerm!.source, confidence: Math.max(termField.confidence, 0.95), needsReview: false };
+      loanAmount = disclosedPrincipal!.value;
+      interestRate = baseRate!.value;
+      resolvedStatedEMI = { ...resolvedStatedEMI, needsReview: true, confidence: Math.min(cap, resolvedStatedEMI.confidence) };
+    } else {
+      principalField = { ...principalField, value: null, source: null, confidence: Math.min(cap, principalField.confidence), needsReview: true };
+      rateField = { ...rateField, value: null, source: null, confidence: Math.min(cap, rateField.confidence), needsReview: true };
+      termField = { ...termField, value: null, source: null, confidence: Math.min(cap, termField.confidence), needsReview: true };
+      interestRate = null;
+      loanAmount = null;
+    }
   }
-  const tolerance = (rules as unknown as { constraintResolution?: { totalTolerance?: number } }).constraintResolution?.totalTolerance ?? 0.01;
-  const statedPaymentTotal = amountCandidates.find((candidate) => /total of payments|total repayment|total payable/i.test(candidate.label));
   if (paymentSchedule && statedPaymentTotal && Math.abs(paymentSchedule.total - statedPaymentTotal.value) / Math.max(statedPaymentTotal.value, 0.01) > tolerance) {
     const position = text.indexOf(statedPaymentTotal.source);
     addConstraintMismatch("payment_total", "Schedule / stated total mismatch", statedPaymentTotal.source, Math.max(0, position),
@@ -393,7 +430,6 @@ function extractValuesNormalized(text: string, aiFallback?: AIExtractedFields): 
     addConstraintMismatch("fee_percent_" + position, "Percentage fee / stated amount mismatch", relationship.source, Math.max(0, position),
       `${relationship.baseLabel} at the stated percentage implies ${relationship.expectedAmount!.toFixed(2)}, but the clause gives ${relationship.derivedAmount.toFixed(2)}.`);
   }
-  const statedFinanceCharge = amountCandidates.find((candidate) => /finance charge|interest charge|total interest/i.test(candidate.label));
   const financeBase = constraintAssignment.principal?.value ?? principalField.value;
   if (statedPaymentTotal && statedFinanceCharge && financeBase !== null) {
     const expectedTotal = financeBase + statedFinanceCharge.value;
@@ -854,7 +890,7 @@ export function analyzeLocally(
     : { ...extracted.rateField, rateType };
   const currency = currencyOverride ?? detectCurrency(text);
   const currencyCode = currency ?? "USD";
-  let principal = principalField.value;
+  let principal = principalField.needsReview ? null : principalField.value;
   const duration = termField.value;
   const schedule = extractInstallmentSchedule(text);
   const installmentCount = schedule?.count ?? extracted.installmentCount;
@@ -864,7 +900,9 @@ export function analyzeLocally(
       ? /net\s+proceeds|advance\s+amount|amount\s+(?:financed|advanced|funded)/i.test(candidate.label)
       : /net\s+proceeds|amount\s+(?:advanced|funded)|purchased\s+amount|receivables\s+purchased|purchase\s+(?:amount|price)|(?:vehicle|cash|sale)\s+price/i.test(candidate.label + " " + candidate.source)))
     .sort((a, b) => b.score - a.score || a.position - b.position)[0];
-  const cashPrice = mca ? priceCandidate?.value ?? null : priceCandidate?.value ?? principal;
+  const cashPriceTypes = (rules as unknown as { calculatorRegistry?: { cashPriceComparisonTypes?: string[] } }).calculatorRegistry?.cashPriceComparisonTypes
+    ?? ["merchant_cash_advance", "bnpl", "subscription", "rent_to_own"];
+  const cashPrice = cashPriceTypes.includes(extracted.docType.type) ? priceCandidate?.value ?? principal : null;
   const periodsPerYear: Record<InstallmentSchedule["intervalUnit"], number> = { day: 365, week: 52, fortnight: 26, month: 12, year: 1 };
   let cashPriceAnalysis: CashPriceAnalysis | null = null;
   if (cashPrice !== null && cashPrice > 0 && schedule) {
@@ -911,7 +949,7 @@ export function analyzeLocally(
   const plausiblePrincipal = principal ?? (principalField.needsReview ? principalField.alternatives[0]?.value ?? null : null);
   const plausibilityConflicts = checkPrincipalPlausibility(text, plausiblePrincipal, extracted.amountCandidates);
   principalField = applyPlausibility(principalField, plausibilityConflicts);
-  principal = principalField.value;
+  principal = principalField.needsReview ? null : principalField.value;
   if (principalField.needsReview && cashPrice === principal) {
     cashPriceAnalysis = null;
     if (rateField.rateRole === "implied") rateField = { ...extracted.rateField };
@@ -1037,7 +1075,9 @@ export function analyzeLocally(
       annualRate: rateField.value,
       tenureMonths: duration,
       rateType: rateField.rateType === "flat" ? "flat" : "reducing",
-      upfrontFees,
+      upfrontFees: upfrontFees + addOns.filter((finding) => !finding.negated && finding.amount !== null
+        && /required|mandatory|condition of (?:this )?loan|paid to (?:the )?borrower/i.test(finding.source))
+        .reduce((sum, finding) => sum + (finding.totalImpact ?? finding.amount ?? 0), 0),
       monthlyFees,
     });
     if (baseResult && loanResult) {
@@ -1150,9 +1190,6 @@ export function analyzeLocally(
       && (finding.frequency === "per_installment" || (finding.frequency === "monthly" && finding.category === "financed_addon")))
       .reduce((sum, finding) => sum + (finding.totalImpact ?? 0), 0);
     schedule.totalWithKnownFees = schedule.total + knownRecurring;
-    if (principal !== null && Math.abs(schedule.total - principal) > Math.max(1, principal * 0.005)) {
-      addWarning("Stated installment total " + formatCurrency(schedule.total, currencyCode) + " differs from the selected amount financed " + formatCurrency(principal, currencyCode) + ".");
-    }
     if (knownRecurring > 0) addWarning("Scheduled payments plus identified recurring charges total " + formatCurrency(schedule.totalWithKnownFees, currencyCode) + "; conditional penalties are excluded.");
   }
 
@@ -1342,7 +1379,7 @@ export function analyzeLocally(
     termField,
     statedEMI: extracted.statedEMI,
     installmentSchedule: schedule,
-    principal,
+    principal: principalField.value,
     findings: canonicalFindings,
     protections: canonicalFindings.filter((finding) => finding.category === "protection"),
     conditionalTerms: canonicalFindings.filter((finding) => finding.category === "conditional_term"),

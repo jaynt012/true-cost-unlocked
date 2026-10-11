@@ -35,7 +35,7 @@ export function HeroSection() {
             className="inline-flex items-center gap-2 font-mono text-[11px] tracking-widest uppercase text-primary border border-primary/30 px-3 py-1.5 mb-8"
           >
             <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse-dot" />
-            ANALYSIS ENGINE V3 ACTIVE
+            ANALYSIS ENGINE V3
           </motion.div>
 
           <motion.h1
@@ -124,9 +124,9 @@ export function HeroSection() {
           <div className="flex items-center justify-between px-4 py-2 border-b border-border">
             <div className="flex items-center gap-3">
               <span className="font-mono text-[10px] tracking-wider text-muted-foreground uppercase">
-                ANALYSIS_ENGINE_V3.1
+                ANALYSIS_ENGINE_V3
               </span>
-              <span className="font-mono text-[10px] text-muted-foreground/50">PID: 44821</span>
+              <span className="font-mono text-[10px] text-muted-foreground/50">Build: Tesseract Core</span>
             </div>
             <div className="flex gap-1.5">
               <span className="w-2.5 h-2.5 border border-muted-foreground/30" />
