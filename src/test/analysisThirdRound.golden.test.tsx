@@ -1,7 +1,6 @@
 import { createElement } from "react";
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import rules from "@/data/analysisRules.json";
 import { AnalysisPanels } from "@/components/AnalysisPanels";
 import { analyzeLocally, extractValuesFromText } from "@/lib/analyzeLocally";
 
@@ -66,7 +65,7 @@ describe("TRUE COST third-round golden cases", () => {
     expect(result.simulator.penaltyAPR).toBe(24);
     expect(result.rateField.value).not.toBe(result.simulator.penaltyAPR);
     expect(result.fees.some((finding) => finding.id === "collateral_recovery")).toBe(true);
-    expect(result.riskBand).toBe("high");
+    expect(result.riskBand).toBe("critical");
   });
 
   it("diagnoses rent-to-own forfeiture, delayed ownership, repossession, and no-credit marketing", () => {
@@ -91,11 +90,11 @@ describe("TRUE COST third-round golden cases", () => {
     expect(result.fees.some((finding) => finding.id === "ownership_after_final_payment")).toBe(true);
     expect(result.claims.some((claim) => claim.id === "own_it_today" && claim.contradicted)).toBe(true);
     expect(result.claims.some((claim) => claim.id === "no_credit_needed" && Boolean(claim.signal))).toBe(true);
-    expect(result.riskBand).toBe("high");
+    expect(result.riskBand).toBe("critical");
     expect(result.confidenceIssues.join(" ")).not.toMatch(/rate/i);
   });
 
-  it("sets a high risk floor for an advance fee required before funds are released", () => {
+  it("sets a Critical risk floor for an advance fee required before funds are released", () => {
     const result = analyzeLocally([
       "ADVANCE CREDIT AGREEMENT",
       "Loan amount: $800",
@@ -105,7 +104,7 @@ describe("TRUE COST third-round golden cases", () => {
     ].join("\n"));
 
     expect(result.fees.some((finding) => finding.id === "advance_fee_demand" && finding.amount === 100)).toBe(true);
-    expect(result.riskBand).toBe("high");
+    expect(result.riskBand).toBe("critical");
   });
 
   it("does not present short-term credit as a monthly EMI calculation without a supported payment model", () => {
@@ -115,7 +114,8 @@ describe("TRUE COST third-round golden cases", () => {
     expect(result.calculator.available).toBe(false);
     expect(result.calculator.unsupportedReason).toMatch(/not modeled as a monthly EMI/i);
     expect(result.financialMetricsAvailable).toBe(false);
-    expect(result.riskBand).toBe("incomplete_analysis");
+    expect(result.riskBand).toBe("high");
+    expect(result.analysisIncomplete).toBe(true);
     expect(result.confidenceIssues).toContain(result.calculator.unsupportedReason);
   });
 
@@ -146,7 +146,7 @@ describe("TRUE COST third-round golden cases", () => {
     expect(result.fees.some((finding) => finding.id === "ownership_after_final_payment")).toBe(true);
   });
 
-  it("uses configured severity floors and has a profile for every document type", () => {
+  it("uses configured severity floors and separates score bands from extraction completeness", () => {
     const document = [
       "Installment loan agreement",
       "Loan amount: $1,000",
@@ -155,13 +155,11 @@ describe("TRUE COST third-round golden cases", () => {
       "The provider may unilaterally change rates and fees without notice.",
     ].join("\n");
     const result = analyzeLocally(document);
-    const profiles = new Set((rules as { inherentRiskProfiles: Array<{ documentType: string }> }).inherentRiskProfiles.map((profile) => profile.documentType));
-    const documentTypes = (rules as { documentTypes: Array<{ id: string }> }).documentTypes;
-
     expect(result.fees.some((finding) => finding.id === "unilateral_term_change")).toBe(true);
-    expect(result.riskBand, JSON.stringify({ confidence: result.confidence, breakdown: result.riskBreakdown })).toBe("medium");
-    expect(profiles.size).toBeGreaterThanOrEqual(documentTypes.length);
-    for (const rule of documentTypes) expect(profiles.has(rule.id)).toBe(true);
+    expect(result.riskBand, JSON.stringify({ confidence: result.confidence, breakdown: result.riskBreakdown })).toBe("high");
+    expect(result.analysisIncomplete).toBe(false);
+    expect(result.riskBreakdown[0].weight).toBeCloseTo(0.55);
+    expect(result.riskBreakdown[0].combinedScore).toBeCloseTo(55);
   });
 
   it("keeps result panels isolated between analyses and registers each panel once", () => {

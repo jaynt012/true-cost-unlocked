@@ -70,6 +70,19 @@ describe("Round-four AI grounding", () => {
     expect(result.findings[0]).not.toHaveProperty("totalImpact");
   });
 
+  it("keeps merged clause fee facts grounded for supplemental AI without splitting the canonical finding", () => {
+    const result = analyzeLocally("Loan amount: $5000. APR: 8%. Term: 24 months. A processing fee of $200 and an origination fee of 3% of principal apply.");
+    const clauseFindings = result.findings.filter((item) => item.evidence.includes("processing fee"));
+    expect(clauseFindings).toHaveLength(1);
+    const grounded = buildAIContext(result).findings.find((item) => item.evidence.includes("processing fee"));
+    expect(grounded?.components?.map((item) => item.id)).toEqual(expect.arrayContaining(["processing", "origination"]));
+    expect(grounded?.components?.find((item) => item.id === "origination")?.computedTotalImpact).toEqual({ value: 150, provenance: "computed" });
+    expect(validateAIEnhancement(result, {
+      aiInsights: ["The processing fee is $200 and the origination fee has a computed impact of $150."],
+      aiNegotiationStrategies: ["Please review the origination fee."],
+    }).aiInsights).toEqual(["The processing fee is $200 and the origination fee has a computed impact of $150."]);
+  });
+
   it("suppresses questions resolved by positive terms or verified financial values", () => {
     const result = validateAIEnhancement(context(true), {
       aiInsights: ["Is the APR disclosed?", "Could you waive the processing fee?"],

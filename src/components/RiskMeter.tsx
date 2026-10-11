@@ -1,23 +1,23 @@
 import { motion } from "framer-motion";
+import { riskBandForScore, type RiskBand } from "@/lib/riskScoring";
 
 interface Props {
   score: number;
-  band?: "low" | "medium" | "high" | "incomplete_analysis";
+  band?: RiskBand;
+  incomplete?: boolean;
 }
 
-export function RiskMeter({ score, band }: Props) {
+export function RiskMeter({ score, band = riskBandForScore(score), incomplete = false }: Props) {
   const getColor = () => {
-    if (band === "incomplete_analysis") return "hsl(var(--muted-foreground))";
-    if (score < 30) return "hsl(68, 100%, 45%)";
-    if (score < 60) return "hsl(45, 93%, 50%)";
+    if (band === "low") return "hsl(68, 100%, 45%)";
+    if (band === "caution") return "hsl(45, 93%, 50%)";
+    if (band === "high") return "hsl(24, 95%, 53%)";
     return "hsl(0, 72%, 55%)";
   };
 
   const getLabel = () => {
-    if (band === "incomplete_analysis") return "INCOMPLETE ANALYSIS";
-    if (score < 30) return "LOW RISK";
-    if (score < 60) return "MEDIUM RISK";
-    return "HIGH RISK";
+    const label = band === "caution" ? "CAUTION" : `${band.toUpperCase()} RISK`;
+    return incomplete ? `${label} (partial analysis)` : label;
   };
 
   const clampedScore = Math.min(Math.max(score, 0), 100);
@@ -56,10 +56,10 @@ export function RiskMeter({ score, band }: Props) {
           className="text-2xl font-mono font-bold"
           style={{ color: getColor() }}
         >
-          {band === "incomplete_analysis" ? "≥" : ""}{score}/100
+          {Number(score.toFixed(1))}/100
         </motion.span>
         <p className="font-mono text-[10px] tracking-widest text-muted-foreground mt-1">{getLabel()}</p>
-        {band === "incomplete_analysis" && <p className="font-mono text-[10px] text-muted-foreground">At least {score} points from detected findings</p>}
+        {incomplete && <p className="font-mono text-[10px] text-muted-foreground">Based on detected findings; some terms could not be extracted.</p>}
       </div>
     </div>
   );

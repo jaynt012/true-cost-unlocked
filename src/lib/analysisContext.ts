@@ -71,6 +71,7 @@ export interface ExtractedField<T = number> {
 
 export type FindingPolarity = "asserted" | "negated" | "waived/zero" | "conditional" | "hypothetical";
 export type FactProvenance = "stated-in-document" | "computed" | "derived" | "assumed";
+export type RiskBand = "low" | "caution" | "high" | "critical";
 
 export interface CostFinding {
   id: string;
@@ -89,6 +90,7 @@ export interface CostFinding {
   negated: boolean;
   /** True when the clause names a charge but does not quantify it. */
   amountNotStated?: boolean;
+  gracePeriodDays?: number | null;
   qualifier?: string | null;
   /** Tax embedded in a composite expression such as "$100 + 18% GST". */
   taxAmount?: number | null;
@@ -101,6 +103,10 @@ export interface CostFinding {
   provenance?: FactProvenance;
   topicId?: string;
   riskRuleIds?: string[];
+  mergedRuleIds?: string[];
+  minimumRiskBand?: RiskBand;
+  /** Individual monetary facts retained when several detectors describe one clause. */
+  components?: CostFinding[];
   ruleOnly?: boolean;
 }
 
@@ -160,6 +166,12 @@ export interface RiskBreakdownItem {
   category: string;
   points: number;
   reasons: string[];
+  weight?: number;
+  baseWeight?: number;
+  repeatFactor?: number;
+  findingId?: string;
+  evidence?: string;
+  combinedScore?: number;
 }
 
 export interface AnalysisContext {
@@ -177,6 +189,9 @@ export interface AnalysisContext {
     basisAssumption: string | null;
   };
   readonly termField: ExtractedField<number>;
+  readonly periodCandidates?: import("./periodRoles").PeriodCandidate[];
+  readonly plausibilityConflicts?: Array<{ field: "principal"; principal: number; conflictingValue: number; label: string; source: string; kind: "fee" | "payment" | "fee_percent" }>;
+  readonly documentStructure?: ReturnType<typeof import("./documentStructure").inspectLegalStructure>;
   readonly statedEMI: ExtractedField<number>;
   readonly installmentSchedule: InstallmentSchedule | null;
   readonly principal: number | null;
@@ -202,7 +217,8 @@ export interface AnalysisContext {
   readonly confidence: number;
   readonly warnings: string[];
   readonly riskScore: number;
-  readonly riskBand: "low" | "medium" | "high" | "incomplete_analysis";
+  readonly riskBand: RiskBand;
+  readonly analysisIncomplete: boolean;
   readonly riskBreakdown: RiskBreakdownItem[];
   readonly summary: string;
   readonly hiddenFees: string[];

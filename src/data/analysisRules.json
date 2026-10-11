@@ -1,25 +1,28 @@
 {
   "segmentation": {
-    "abbreviations": ["Rs.", "Inc.", "No.", "approx.", "vs.", "e.g.", "i.e.", "etc.", "Ltd.", "Mr.", "Mrs.", "Dr.", "St.", "U.S.", "U.K."]
+    "abbreviations": ["Rs.", "Inc.", "No.", "approx.", "vs.", "e.g.", "i.e.", "etc.", "Ltd.", "Mr.", "Mrs.", "Dr.", "St.", "U.S.", "U.K."],
+    "headingPatterns": ["^[A-Z][A-Z\\s/()&—:–-]{2,100}$"]
   },
   "polarity": {
-    "negators": ["\\b(?:no|not|none|never|neither|nor)\\b", "\\b(?:don['’]t|doesn['’]t|won['’]t|cannot|can['’]t)\\b", "\\bwithout(?!\\s+(?:notice|consent|permission|agreement))\\b|\\bfree\\s+of\\b", "\\b(?:waiv(?:e|ed)(?!\\s+(?:(?:your|the|any)\\s+)?(?:rights?|class))|exempt)\\b"],
+    "negators": ["\\b(?:no|not|none|never|neither|nor)\\b", "\\b(?:don['’]t|doesn['’]t|won['’]t|cannot|can['’]t)\\b", "\\bwithout(?!\\s+(?:(?:prior|advance|further|any)\\s+)?(?:notice|consent|permission|agreement))\\b|\\bfree\\s+of\\b", "\\b(?:waiv(?:e|ed)(?!\\s+(?:(?:your|the|any)\\s+)?(?:rights?|class))|exempt)\\b"],
     "zeroPatterns": ["(?:[$₹€£¥]|\\b(?:USD|INR|EUR|GBP|Rs\\.?))\\s*0(?:\\.0+)?(?![\\d.])", "\\b(?:zero|nil|none|waived)\\b", "\\b0(?:\\.0+)?\\s*%"],
     "scopeBreaks": [",?\\s*\\b(?:but|however|only|except|instead|yet|then|thereafter)\\b", ",(?!\\s*(?:or|and)\\b)", "\\band\\s+(?=(?:(?:we|you|they|it)\\s+)?(?:no\\b|not\\b|do\\s+not|don['’]t))"],
-    "nonNegatingPatterns": ["\\bnot\\s+refundable\\b", "\\bnot\\s+optional\\b", "\\b(?:rights?|class[- ]action)[^.;]{0,60}\\bwaived\\b"],
+    "nonNegatingPatterns": ["\\bnot\\s+refundable\\b", "\\bnot\\s+optional\\b", "(?<=\\b(?:rights?|class[- ]action|jury[- ]trial)[^.;]{0,60})\\bwaived\\b", "\\bwaiv(?:e|ed)\\b(?=[^.;]{0,90}\\b(?:jury[- ]trial|class[- ]action|rights?)\\b)"],
     "laterAmountPattern": "\\b(?:then|thereafter|afterwards|subsequently|after\\s+(?:the\\s+)?(?:first\\s+)?\\d+|following\\s+(?:the\\s+)?grace)\\b",
     "conditionalPatterns": ["\\b(?:if|unless|when|upon|after|subject\\s+to|may|might|could)\\b"],
     "hypotheticalPatterns": ["\\b(?:for\\s+example|suppose|hypothetically|illustration|illustrative)\\b"],
     "conditionPattern": "\\b(?:if|unless|when|provided that|only if|after|upon|following|during|for the first|within)\\s+[^.;]+"
   },
-  "protectionPolicy": { "inherentRiskReductionPerTerm": 1, "maximumInherentRiskReduction": 5 },
-  "scenarioPeriods": { "gracePattern": "\\b(?:during|for|within)\\s+(?:the\\s+)?(?:first\\s+)?(?<count>\\d+)\\s*(?<unit>days?|weeks?|months?|years?)\\b", "daysPerUnit": { "day": 1, "week": 7, "month": 30, "year": 365 } },
+  "scenarioPeriods": {
+    "gracePattern": "\\b(?:(?:grace(?:\\s+period)?|during|for|within|after|following)\\s+(?:the\\s+)?(?:first\\s+)?(?:period\\s+of\\s+)?)(?<count>\\d+)\\s*(?<unit>days?|weeks?|months?|years?)\\b",
+    "daysPerUnit": {"day": 1, "week": 7, "month": 30, "year": 365}
+  },
   "rateAttributes": {
     "types": [
-      { "type": "variable", "pattern": "\\b(?:variable|adjustable|floating)\\b|(?:linked|tied)\\s+to\\s+(?:the\\s+)?(?:prime|benchmark)" },
-      { "type": "introductory", "pattern": "\\b(?:introductory|promotional|teaser)\\b" },
-      { "type": "fixed", "pattern": "\\bfixed(?:[- ]rate|\\s+(?:apr|interest|rate))\\b|\\b(?:apr|interest(?:\\s+rate)?|rate)\\b[^.;]{0,20}\\bfixed\\b" },
-      { "type": "fixed", "pattern": "\\brate\\b[^.;]{0,45}\\b(?:will\\s+not|does\\s+not|won['’]t|never)\\s+(?:change|increase)\\b", "acceptedPolarities": ["negated"] }
+      {"type": "variable", "pattern": "\\b(?:variable|adjustable|floating)\\b|(?:linked|tied)\\s+to\\s+(?:the\\s+)?(?:prime|benchmark)|(?:sole|absolute)\\s+discretion[^.;]{0,90}\\b(?:change|modify|increase|raise|revise)\\b[^.;]{0,60}\\b(?:rates?|terms?|fees?|charges?|apr|interest)\\b|\\bunilaterally\\s+(?:change|modify|increase|raise|revise)\\b[^.;]{0,60}\\b(?:rates?|terms?|fees?|charges?|apr|interest)\\b|\\b(?:rates?|terms?|apr|interest)\\b[^.;]{0,90}\\b(?:unilaterally|at\\s+(?:our|its|the\\s+lender['’]s)\\s+discretion)\\b"},
+      {"type": "introductory", "pattern": "\\b(?:introductory|promotional|teaser)\\b"},
+      {"type": "fixed", "pattern": "\\bfixed(?:[- ]rate|\\s+(?:apr|interest|rate))\\b|\\b(?:apr|interest(?:\\s+rate)?|rate)\\b[^.;]{0,20}\\bfixed\\b"},
+      {"type": "fixed", "pattern": "\\brate\\b[^.;]{0,45}\\b(?:will\\s+not|does\\s+not|won['’]t|never)\\s+(?:change|increase)\\b", "acceptedPolarities": ["negated"]}
     ],
     "flatPattern": "\\bflat\\b|add[- ]on\\s+(?:rate|interest)|on\\s+(?:the\\s+)?original\\s+principal",
     "reducingPattern": "\\breducing\\b|declining\\s+(?:balance|principal)|on\\s+(?:the\\s+)?(?:daily\\s+)?balance",
@@ -27,65 +30,39 @@
     "flatPricingProducts": ["payday", "gold_loan", "rent_to_own"]
   },
   "protectionCatalog": [
-    { "id": "fixed_rate", "label": "Fixed rate", "pattern": "\\bfixed(?:[- ]rate|\\s+(?:apr|interest|rate))\\b|\\b(?:apr|interest(?:\\s+rate)?|rate)\\b[^.;]{0,20}\\bfixed\\b", "explanation": "The stated rate is fixed rather than variable.", "acceptedPolarities": ["asserted"] },
-    { "id": "fixed_rate", "label": "Fixed rate", "pattern": "\\brate\\b[^.;]{0,45}\\b(?:will\\s+not|does\\s+not|won['’]t|never)\\s+(?:change|increase)\\b", "explanation": "The agreement says the rate will not change.", "acceptedPolarities": ["negated"] },
-    { "id": "rate_lock", "label": "Rate lock", "pattern": "\\brate\\s+(?:lock(?:ed)?|guarantee)\\b", "explanation": "A documented lock protects the quoted rate for the stated period.", "acceptedPolarities": ["asserted", "conditional"] },
-    { "id": "cancellation_window", "label": "Cancellation window", "pattern": "\\b(?:cancel|cancellation|withdraw|cooling[- ]off|rescind)\\b[^.;]{0,70}\\b\\d+\\s*(?:days?|hours?)\\b", "disallowedPatterns": ["\\b(?:cannot|can\\s+not|may\\s+not|not\\s+(?:allowed|permitted)\\s+to|unable\\s+to|don['’]t|do\\s+not)\\s+(?:cancel|withdraw|rescind)\\b"], "explanation": "A stated cancellation or cooling-off window can allow withdrawal under the listed conditions.", "acceptedPolarities": ["asserted", "negated", "waived/zero", "conditional"] },
-    { "id": "grace_period", "label": "Grace period", "pattern": "\\bgrace\\s+period\\b", "explanation": "The stated grace period limits charges during the documented window.", "acceptedPolarities": ["asserted", "waived/zero", "conditional"] },
-    { "id": "arbitration", "label": "No compulsory arbitration", "pattern": "\\b(?:binding\\s+|mandatory\\s+)?arbitration\\b", "explanation": "The agreement excludes the stated arbitration requirement.", "acceptedPolarities": ["negated", "waived/zero"] }
+    {"id": "fixed_rate", "label": "Fixed rate", "pattern": "\\bfixed(?:[- ]rate|\\s+(?:apr|interest|rate))\\b|\\b(?:apr|interest(?:\\s+rate)?|rate)\\b[^.;]{0,20}\\bfixed\\b", "explanation": "The stated rate is fixed rather than variable.", "acceptedPolarities": ["asserted"]},
+    {"id": "fixed_rate", "label": "Fixed rate", "pattern": "\\brate\\b[^.;]{0,45}\\b(?:will\\s+not|does\\s+not|won['’]t|never)\\s+(?:change|increase)\\b", "explanation": "The agreement says the rate will not change.", "acceptedPolarities": ["negated"]},
+    {"id": "rate_lock", "label": "Rate lock", "pattern": "\\brate\\s+(?:lock(?:ed)?|guarantee)\\b", "explanation": "A documented lock protects the quoted rate for the stated period.", "acceptedPolarities": ["asserted", "conditional"]},
+    {"id": "cancellation_window", "label": "Cancellation window", "pattern": "\\b(?:cancel|cancellation|withdraw|cooling[- ]off|rescind)\\b[^.;]{0,70}\\b\\d+\\s*(?:days?|hours?)\\b", "disallowedPatterns": ["\\b(?:cannot|can\\s+not|may\\s+not|not\\s+(?:allowed|permitted)\\s+to|unable\\s+to|don['’]t|do\\s+not)\\s+(?:cancel|withdraw|rescind)\\b"], "explanation": "A stated cancellation or cooling-off window can allow withdrawal under the listed conditions.", "acceptedPolarities": ["asserted", "negated", "waived/zero", "conditional"]},
+    {"id": "grace_period", "label": "Grace period", "pattern": "\\bgrace\\s+period\\b", "explanation": "The stated grace period limits charges during the documented window.", "acceptedPolarities": ["asserted", "waived/zero", "conditional"]},
+    {"id": "arbitration", "label": "No compulsory arbitration", "pattern": "\\b(?:binding\\s+|mandatory\\s+)?arbitration\\b", "explanation": "The agreement excludes the stated arbitration requirement.", "acceptedPolarities": ["negated", "waived/zero"]}
   ],
   "monetaryBases": [
-    { "id": "interest", "pattern": "(?:on|of)\\s+(?:the\\s+)?(?:total\\s+)?interest(?:\\s+component)?|interest\\s+component" },
-    { "id": "outstanding", "pattern": "(?:of|on)\\s+(?:the\\s+)?(?:outstanding|remaining)\\s+(?:principal|balance)|outstanding\\s+(?:principal|balance)" },
-    { "id": "principal", "pattern": "(?:of|on)\\s+(?:the\\s+)?(?:original\\s+)?(?:principal|amount\\s+financed|loan\\s+amount)" },
-    { "id": "emi", "pattern": "(?:of|on)\\s+(?:the\\s+)?(?:emi|installment|payment)" },
-    { "id": "fee", "pattern": "(?:of|on)\\s+(?:the\\s+)?fee|fee\\s+amount" },
-    { "id": "transaction", "pattern": "(?:of|on)\\s+(?:each\\s+)?transaction|transaction\\s+amount" }
+    {"id": "interest", "pattern": "\\b(?:(?:on|of)\\s+(?:the\\s+)?(?:total\\s+)?interest(?:\\s+component)?|interest\\s+component)\\b"},
+    {"id": "outstanding", "pattern": "\\b(?:(?:of|on)\\s+(?:the\\s+)?(?:outstanding|remaining)\\s+(?:principal|balance)|outstanding\\s+(?:principal|balance))\\b"},
+    {"id": "principal", "pattern": "\\b(?:(?:of|on)\\s+(?:the\\s+)?(?:original\\s+)?(?:principal|amount\\s+financed|loan\\s+amount))\\b"},
+    {"id": "emi", "pattern": "\\b(?:(?:of|on)\\s+(?:(?:the|each)\\s+)?(?:emi|installments?|payments?))\\b"},
+    {"id": "fee", "pattern": "\\b(?:(?:of|on)\\s+(?:the\\s+)?fee|fee\\s+amount)\\b"},
+    {"id": "transaction", "pattern": "\\b(?:(?:of|on)\\s+(?:each\\s+)?transaction|transaction\\s+amount)\\b"}
   ],
   "rateRoleRules": [
-    { "role": "penalty", "pattern": "penal\\s+interest|penalty\\s+(?:apr|rate|interest)|default\\s+(?:apr|rate|interest)|overdue\\s+(?:apr|rate|interest)|late\\s+(?:payment\\s+)?interest|delay\\s+interest|interest\\s+on\\s+(?:an?\\s+)?overdue" },
-    { "role": "tax", "pattern": "\\b(?:gst|vat|hst|pst|sales\\s+tax|tax(?:es)?)\\b" },
-    { "role": "fee_percent", "pattern": "\\b(?:fee|fees|charge|charges|commission|processing|origination)\\b|%\\s+of\\s+(?:the\\s+)?(?:loan|principal|amount)" },
-    { "role": "discount", "pattern": "\\b(?:discount|rebate|cashback|savings|off)\\b" },
-    { "role": "promotional", "pattern": "\\b(?:introductory|promotional|teaser|deferred|interest[- ]free|no[- ]interest)\\b|for\\s+the\\s+first\\s+\\d+\\s+(?:months?|years?)" },
-    { "role": "base", "pattern": "\\b(?:apr|annual\\s+percentage\\s+rate|interest(?:\\s+rate)?|rate)\\b" }
+    {"role": "penalty", "pattern": "penal\\s+interest|penalty\\s+(?:apr|rate|interest)|default\\s+(?:apr|rate|interest)|overdue\\s+(?:apr|rate|interest)|late\\s+(?:payment\\s+)?interest|delay\\s+interest|interest\\s+on\\s+(?:an?\\s+)?overdue"},
+    {"role": "tax", "pattern": "\\b(?:gst|vat|hst|pst|sales\\s+tax|tax(?:es)?)\\b"},
+    {"role": "fee_percent", "pattern": "\\b(?:fee|fees|charge|charges|commission|processing|origination)\\b|%\\s+of\\s+(?:the\\s+)?(?:loan|principal|amount)"},
+    {"role": "discount", "pattern": "\\b(?:discount|rebate|cashback|savings|off)\\b"},
+    {"role": "promotional", "pattern": "\\b(?:introductory|promotional|teaser|deferred|interest[- ]free|no[- ]interest)\\b|for\\s+the\\s+first\\s+\\d+\\s+(?:months?|years?)"},
+    {"role": "base", "pattern": "\\b(?:apr|annual\\s+percentage\\s+rate|interest(?:\\s+rate)?|rate)\\b"}
   ],
   "quantityRelationships": {
     "percentOfPattern": "(?<percent>\\d+(?:\\.\\d+)?)\\s*%\\s*of\\s+(?<baseLabel>loan\\s+amount|amount\\s+financed|principal|cash\\s+price|purchase\\s+price|amount\\s+borrowed|credit\\s+amount)[^.;]*?\\((?<derived>[^()]*)\\)",
     "references": [
-      { "id": "principal", "pattern": "loan\\s+amount|amount\\s+financed|principal|amount\\s+borrowed|credit\\s+amount", "candidatePattern": "loan\\s+amount|amount\\s+financed|principal|amount\\s+borrowed|credit\\s+amount" },
-      { "id": "cash_price", "pattern": "cash\\s+price|purchase\\s+price", "candidatePattern": "cash\\s+price|purchase\\s+price|vehicle\\s+price" }
+      {"id": "principal", "pattern": "loan\\s+amount|amount\\s+financed|principal|amount\\s+borrowed|credit\\s+amount", "candidatePattern": "loan\\s+amount|amount\\s+financed|principal|amount\\s+borrowed|credit\\s+amount"},
+      {"id": "cash_price", "pattern": "cash\\s+price|purchase\\s+price", "candidatePattern": "cash\\s+price|purchase\\s+price|vehicle\\s+price"}
     ]
   },
-  "inherentRiskProfiles": [
-    { "documentType": "installment_loan", "weight": 0, "reason": "Standard installment credit; individual pricing and contract findings determine the risk score." },
-    { "documentType": "bnpl", "weight": 3, "reason": "Deferred or split payments can carry fees and conditional interest." },
-    { "documentType": "auto_loan", "weight": 3, "reason": "Vehicle financing can include collateral recovery and financed add-ons." },
-    { "documentType": "mortgage", "weight": 3, "reason": "Property-secured credit can expose the borrower to loss of collateral." },
-    { "documentType": "credit_card", "weight": 5, "reason": "Revolving balances can compound and remain open-ended." },
-    { "documentType": "payday", "weight": 18, "reason": "Short-term credit commonly creates high-cost repayment pressure." },
-    { "documentType": "rent_to_own", "weight": 20, "reason": "Missed payments may forfeit prior payments or delay ownership." },
-    { "documentType": "gold_loan", "weight": 12, "reason": "Pledged collateral may be sold after default." },
-    { "documentType": "subscription", "weight": 0, "reason": "Recurring-payment terms are scored from renewal, cancellation, and fee findings." },
-    { "documentType": "advance_fee_scam", "weight": 20, "reason": "Upfront-payment demands before credit delivery require fraud review." },
-    { "documentType": "unknown", "weight": 0, "reason": "Document type is unclassified; detected terms determine the risk score." }
-  ],
-  "riskBandThresholds": { "medium": 30, "high": 60, "confidence": 0.7 },
   "calculatorRegistry": {
     "default": "reducing_balance",
-    "documentTypes": {
-      "installment_loan": "reducing_balance",
-      "auto_loan": "reducing_balance",
-      "mortgage": "reducing_balance",
-      "bnpl": "reducing_balance_with_offsets_and_tax",
-      "payday": "short_term",
-      "credit_card": "revolving",
-      "subscription": "cash_price_vs_total",
-      "rent_to_own": "cash_price_vs_total",
-      "gold_loan": "reducing_balance",
-      "advance_fee_scam": "reducing_balance",
-      "unknown": "reducing_balance"
-    }
+    "documentTypes": {"installment_loan": "reducing_balance", "auto_loan": "reducing_balance", "mortgage": "reducing_balance", "bnpl": "reducing_balance_with_offsets_and_tax", "payday": "short_term", "credit_card": "revolving", "subscription": "cash_price_vs_total", "rent_to_own": "cash_price_vs_total", "gold_loan": "reducing_balance", "advance_fee_scam": "reducing_balance", "unknown": "reducing_balance"}
   },
   "calculatorInputs": {
     "reducing_balance": ["principal", "rate", "term"],
@@ -96,122 +73,211 @@
     "cash_price_vs_total": ["cash_price", "scheduled_total"]
   },
   "listCategories": [
-    { "id": "financed_addon", "labelPattern": "financed\\s+(?:add[- ]?ons?|items?|products?|upgrades?)|optional\\s+(?:add[- ]?ons?|products?|equipment|items?)|additional\\s+(?:products?|items?|options?|equipment|upgrades?)", "category": "financed_addon" },
-    { "id": "fee_list", "labelPattern": "^(?:fees?|charges?)$", "category": "upfront_fee" }
+    {"id": "financed_addon", "labelPattern": "financed\\s+(?:add[- ]?ons?|items?|products?|upgrades?)|optional\\s+(?:add[- ]?ons?|products?|equipment|items?)|additional\\s+(?:products?|items?|options?|equipment|upgrades?)", "category": "financed_addon"},
+    {"id": "fee_list", "labelPattern": "^(?:fees?|charges?)$", "category": "upfront_fee"}
   ],
   "unquantifiedTerms": [
-    { "id": "negative_equity", "label": "Rolled-in negative equity", "pattern": "negative\\s+equity|roll(?:ed)?\\s+over\\s+(?:the\\s+)?(?:old\\s+)?loan\\s+balance|prior\\s+loan\\s+balance", "category": "negative_equity", "severity": 3 },
-    { "id": "unquantified_fee", "label": "Unquantified fee or charge", "pattern": "fees?\\s+may\\s+apply|other\\s+(?:fees?|charges?)\\s+may\\s+apply|additional\\s+(?:fees?|charges?)\\s+(?:may\\s+apply|apply)", "category": "undisclosed_amount", "severity": 2 }
+    {"id": "negative_equity", "label": "Rolled-in negative equity", "pattern": "negative\\s+equity|roll(?:ed)?\\s+over\\s+(?:the\\s+)?(?:old\\s+)?loan\\s+balance|prior\\s+loan\\s+balance", "category": "negative_equity", "severity": 3},
+    {"id": "unquantified_fee", "label": "Unquantified fee or charge", "pattern": "fees?\\s+may\\s+apply|other\\s+(?:fees?|charges?)\\s+may\\s+apply|additional\\s+(?:fees?|charges?)\\s+(?:may\\s+apply|apply)", "category": "undisclosed_amount", "severity": 2}
   ],
   "principalLabels": [
-    { "id": "amount_financed", "pattern": "\\bamount\\s+financed\\b", "score": 140, "kind": "principal" },
-    { "id": "loan_amount", "pattern": "\\bloan\\s+amount\\b", "score": 130, "kind": "principal" },
-    { "id": "principal", "pattern": "\\bprincipal(?:\\s+amount)?\\b", "score": 125, "kind": "principal" },
-    { "id": "amount_borrowed", "pattern": "\\bamount\\s+borrowed\\b", "score": 125, "kind": "principal" },
-    { "id": "credit_amount", "pattern": "\\bcredit\\s+amount\\b", "score": 125, "kind": "principal" },
-    { "id": "financed_amount", "pattern": "\\bfinanced\\s+amount\\b", "score": 120, "kind": "principal" },
-    { "id": "purchase_amount", "pattern": "\\bpurchase\\s+amount\\b", "score": 65, "kind": "price" },
-    { "id": "purchase_price", "pattern": "\\b(?:purchase|product|cash|vehicle|sale)\\s+price\\b", "score": 65, "kind": "price" },
-    { "id": "negative_principal_label", "pattern": "\\b(?:emi|monthly\\s+payments?|payments?|installments?|instalments?|fees?|charges?|tax(?:es)?|limits?|deposit|down\\s+payment|discount|coverage|insurance|gap|apr|interest\\s+rate|term|tenure|tenor|duration|period)\\b", "score": -160, "kind": "exclude" }
+    {"id": "amount_financed", "pattern": "\\bamount\\s+financed\\b", "score": 140, "kind": "principal"},
+    {"id": "loan_amount", "pattern": "\\bloan\\s+amount\\b", "score": 130, "kind": "principal"},
+    {"id": "defined_loan", "pattern": "\\b(?:loan|credit\\s+facility)\\b", "score": 115, "kind": "principal"},
+    {"id": "advance_amount", "pattern": "\\b(?:cash\\s+)?advance(?:\\s+amount)?\\b", "score": 120, "kind": "principal"},
+    {"id": "principal", "pattern": "\\bprincipal(?:\\s+amount)?\\b", "score": 125, "kind": "principal"},
+    {"id": "amount_borrowed", "pattern": "\\bamount\\s+borrowed\\b", "score": 125, "kind": "principal"},
+    {"id": "credit_amount", "pattern": "\\bcredit\\s+amount\\b", "score": 125, "kind": "principal"},
+    {"id": "financed_amount", "pattern": "\\bfinanced\\s+amount\\b", "score": 120, "kind": "principal"},
+    {"id": "purchase_amount", "pattern": "\\bpurchase\\s+amount\\b", "score": 65, "kind": "price"},
+    {"id": "purchase_price", "pattern": "\\b(?:purchase|product|cash|vehicle|sale)\\s+price\\b", "score": 65, "kind": "price"},
+    {"id": "negative_principal_label", "pattern": "\\b(?:emi|monthly\\s+payments?|payments?|installments?|instalments?|fees?|charges?|tax(?:es)?|limits?|deposit|down\\s+payment|discount|coverage|insurance|gap|apr|interest\\s+rate|term|tenure|tenor|duration|period)\\b", "score": -160, "kind": "exclude"},
+    {"id": "amount_before_loan", "pattern": "^\\s*(?:loan|credit\\s+facility|credit|advance)\\b", "score": 120, "kind": "principal", "position": "after"}
   ],
   "documentTypes": [
-    { "id": "bnpl", "label": "Buy now, pay later / no-cost EMI", "signals": [{ "pattern": "buy[- ]?now[- ]?pay[- ]?later|bnpl", "weight": 8 }, { "pattern": "pay\\s+in\\s+\\d+\\s+installments?", "weight": 5 }, { "pattern": "no[- ]cost\\s+emi|interest[- ]free\\s+installments?", "weight": 5 }] },
-    { "id": "auto_loan", "label": "Auto loan", "signals": [{ "pattern": "auto\\s+loan|vehicle\\s+loan|motor\\s+vehicle", "weight": 8 }, { "pattern": "vehicle\\s+identification\\s+number|\\bvin\\b|dealer\\s+fee", "weight": 4 }, { "pattern": "gap\\s+(?:coverage|insurance)", "weight": 3 }] },
-    { "id": "mortgage", "label": "Mortgage", "signals": [{ "pattern": "mortgage|home\\s+loan|real\\s+property", "weight": 8 }, { "pattern": "escrow|property\\s+tax|loan-to-value", "weight": 3 }] },
-    { "id": "credit_card", "label": "Credit card / revolving credit", "signals": [{ "pattern": "credit\\s+card|cardholder|revolving\\s+credit", "weight": 8 }, { "pattern": "minimum\\s+payment|cash\\s+advance", "weight": 3 }] },
-    { "id": "payday", "label": "Payday / short-term loan", "signals": [{ "pattern": "payday|cash\\s+advance\\s+loan|short[- ]term\\s+loan", "weight": 8 }, { "pattern": "due\\s+on\\s+your\\s+next\\s+payday", "weight": 4 }] },
-    { "id": "rent_to_own", "label": "Rent-to-own", "signals": [{ "pattern": "rent[- ]to[- ]own|lease[- ]to[- ]own|early\\s+purchase\\s+option", "weight": 10 }] },
-    { "id": "gold_loan", "label": "Gold-backed loan", "signals": [{ "pattern": "gold\\s+loan|gold\\s+jewell?ery|pledged\\s+gold", "weight": 8 }, { "pattern": "assaying\\s+charge|loan-to-value", "weight": 2 }] },
-    { "id": "subscription", "label": "Subscription", "signals": [{ "pattern": "subscription|recurring\\s+membership|monthly\\s+membership", "weight": 6 }, { "pattern": "cancel\\s+anytime|auto[- ]renew", "weight": 3 }] },
-    { "id": "advance_fee_scam", "label": "Possible advance-fee scam", "signals": [{ "pattern": "guaranteed\\s+approval|no\\s+credit\\s+check", "weight": 3 }, { "pattern": "upfront\\s+(?:insurance|processing|release)\\s+fee", "weight": 4 }, { "pattern": "wire\\s+transfer|gift\\s+card|crypto(?:currency)?\\s+payment", "weight": 5 }] },
-    { "id": "installment_loan", "label": "Installment loan", "signals": [{ "pattern": "installment\\s+loan|personal\\s+loan|loan\\s+agreement|amount\\s+financed|loan\\s+amount|principal", "weight": 3 }, { "pattern": "apr|annual\\s+percentage\\s+rate|repayment\\s+period|loan\\s+term", "weight": 1 }] }
+    {"id": "bnpl", "label": "Buy now, pay later / no-cost EMI", "signals": [{"pattern": "buy[- ]?now[- ]?pay[- ]?later|bnpl", "weight": 8}, {"pattern": "pay\\s+in\\s+\\d+\\s+installments?", "weight": 5}, {"pattern": "no[- ]cost\\s+emi|interest[- ]free\\s+installments?", "weight": 5}]},
+    {"id": "auto_loan", "label": "Auto loan", "signals": [{"pattern": "auto\\s+loan|vehicle\\s+loan|motor\\s+vehicle", "weight": 8}, {"pattern": "vehicle\\s+identification\\s+number|\\bvin\\b|dealer\\s+fee", "weight": 4}, {"pattern": "gap\\s+(?:coverage|insurance)", "weight": 3}]},
+    {"id": "mortgage", "label": "Mortgage", "signals": [{"pattern": "mortgage|home\\s+loan|real\\s+property", "weight": 8}, {"pattern": "escrow|property\\s+tax|loan-to-value", "weight": 3}]},
+    {"id": "credit_card", "label": "Credit card / revolving credit", "signals": [{"pattern": "credit\\s+card|cardholder|revolving\\s+credit", "weight": 8}, {"pattern": "minimum\\s+payment|cash\\s+advance", "weight": 3}]},
+    {"id": "payday", "label": "Payday / short-term loan", "signals": [{"pattern": "payday|cash\\s+advance\\s+loan|short[- ]term\\s+loan", "weight": 8}, {"pattern": "due\\s+on\\s+your\\s+next\\s+payday", "weight": 4}]},
+    {"id": "rent_to_own", "label": "Rent-to-own", "signals": [{"pattern": "rent[- ]to[- ]own|lease[- ]to[- ]own|early\\s+purchase\\s+option", "weight": 10}]},
+    {"id": "gold_loan", "label": "Gold-backed loan", "signals": [{"pattern": "gold\\s+loan|gold\\s+jewell?ery|pledged\\s+gold", "weight": 8}, {"pattern": "assaying\\s+charge|loan-to-value", "weight": 2}]},
+    {"id": "subscription", "label": "Subscription", "signals": [{"pattern": "subscription|recurring\\s+membership|monthly\\s+membership", "weight": 6}, {"pattern": "cancel\\s+anytime|auto[- ]renew", "weight": 3}]},
+    {"id": "advance_fee_scam", "label": "Possible advance-fee scam", "signals": [{"pattern": "guaranteed\\s+approval|no\\s+credit\\s+check", "weight": 3}, {"pattern": "upfront\\s+(?:insurance|processing|release)\\s+fee", "weight": 4}, {"pattern": "wire\\s+transfer|gift\\s+card|crypto(?:currency)?\\s+payment", "weight": 5}]},
+    {"id": "installment_loan", "label": "Installment loan", "signals": [{"pattern": "installment\\s+loan|personal\\s+loan|loan\\s+agreement|amount\\s+financed|loan\\s+amount|principal", "weight": 3}, {"pattern": "apr|annual\\s+percentage\\s+rate|repayment\\s+period|loan\\s+term", "weight": 1}]}
   ],
   "feeCatalog": [
-    { "id": "origination", "label": "Origination fee", "patterns": ["origination\\s+fee", "loan\\s+setup\\s+fee"], "category": "upfront_fee", "severity": 2, "explanation": "Upfront charge for creating or setting up the credit." },
-    { "id": "processing", "label": "Processing fee", "patterns": ["processing\\s+fee", "administrative\\s+fee"], "category": "upfront_fee", "severity": 2, "explanation": "Upfront processing or administration charge." },
-    { "id": "convenience", "label": "Convenience fee", "patterns": ["convenience\\s+fee", "transaction\\s+fee"], "category": "recurring_fee", "severity": 2, "explanation": "Charge applied for processing a payment or transaction." },
-    { "id": "late_payment", "label": "Late or missed-payment fee", "patterns": ["late\\s+(?:(?:payment|installment|instalment)\\s+)?fee", "missed\\s+(?:payment|installment|instalment)\\s+fee", "overdue\\s+fee"], "category": "penalty", "severity": 3, "explanation": "Charge triggered by a late or missed payment." },
-    { "id": "general_fees", "label": "General fees", "fallbackOnly": true, "patterns": ["\\b(?:hidden|extra|additional)\\s+(?:fees?|charges?)\\b", "\\bfees?\\s*:\\s*(?:nil|none|zero)\\b", "\\bfee\\s+of\\s+any\\s+kind\\b"], "category": "upfront_fee", "severity": 2, "explanation": "The clause describes a general transaction charge." },
-    { "id": "reschedule", "label": "Rescheduling fee", "patterns": ["reschedul(?:e|ing)\\s+fee"], "category": "penalty", "severity": 2, "explanation": "Charge for moving a payment date." },
-    { "id": "annual", "label": "Annual fee", "patterns": ["annual\\s+fee", "yearly\\s+fee"], "category": "recurring_fee", "severity": 2, "explanation": "Recurring annual account charge." },
-    { "id": "balance_transfer", "label": "Balance-transfer fee", "patterns": ["balance\\s+transfer\\s+fee"], "category": "upfront_fee", "severity": 2, "explanation": "Charge for transferring a balance." },
-    { "id": "cash_advance", "label": "Cash-advance fee", "patterns": ["cash\\s+advance\\s+fee"], "category": "upfront_fee", "severity": 3, "explanation": "Charge for a cash advance." },
-    { "id": "foreign_transaction", "label": "Foreign-transaction fee", "patterns": ["foreign\\s+transaction\\s+fee"], "category": "upfront_fee", "severity": 1, "explanation": "Charge on foreign-currency transactions." },
-    { "id": "payment_protection", "label": "Payment-protection add-on", "patterns": ["payment\\s+protection\\s+plan", "payment\\s+insurance", "credit\\s+insurance"], "category": "financed_addon", "severity": 3, "explanation": "Optional or financed payment-protection product; verify enrollment and cancellation terms." },
-    { "id": "gap", "label": "GAP coverage add-on", "patterns": ["gap\\s+(?:coverage|insurance|protection)"], "category": "financed_addon", "severity": 3, "explanation": "Vehicle add-on that may cover a shortfall between vehicle value and loan balance." },
-    { "id": "service_contract", "label": "Service contract or warranty add-on", "patterns": ["service\\s+contract", "extended\\s+warranty"], "category": "financed_addon", "severity": 2, "explanation": "Optional protection product that may be included in the financed amount." },
-    { "id": "tax_interest", "label": "Tax on interest or fees", "patterns": ["(?:gst|vat|sales\\s+tax)\\s+(?:on|of)\\s+(?:interest|fees?)", "tax(?:es)?\\s+on\\s+(?:interest|fees?)"], "category": "tax", "severity": 2, "explanation": "Tax assessed on interest or loan fees." },
-    { "id": "prepayment", "label": "Prepayment or foreclosure charge", "patterns": ["prepayment\\s+(?:penalty|charge|fee)", "foreclosure\\s+(?:charge|fee|penalty)"], "category": "prepayment", "severity": 2, "explanation": "Charge for repaying or closing the loan early." },
-    { "id": "negative_equity", "label": "Rolled-in negative equity", "patterns": ["negative\\s+equity", "roll(?:ed)?\\s+over\\s+(?:the\\s+)?(?:old\\s+)?loan\\s+balance", "prior\\s+loan\\s+balance"], "category": "negative_equity", "severity": 3, "explanation": "Prior debt may be rolled into the new financing." },
-    { "id": "forfeiture", "label": "Forfeiture of prior payments", "patterns": ["forfeit(?:ure|s|ed)?\\s+(?:of\\s+)?(?:prior|previous|past|all|any)?\\s*(?:payments?|amounts?|rent|installments?)", "forfeit\\w*[^.;]{0,35}\\b(?:payments?|amounts?|rent|installments?)\\b", "lose\\s+(?:all\\s+)?(?:prior|previous|past)?\\s*(?:payments?|amounts?|rent)", "(?:prior|previous|past)\\s+(?:payments?|rent|installments?)\\s+(?:will\\s+be|are|is|become)\\s+(?:forfeited|nonrefundable|not\\s+refunded)", "(?:payments?|rent|amounts?)\\s+already\\s+paid\\s+(?:will\\s+be|are|is)\\s+(?:forfeited|kept|not\\s+refunded)"], "category": "forfeiture", "severity": 5, "minimumRiskBand": "high", "riskReason": "The agreement can forfeit amounts already paid.", "explanation": "Prior payments may be kept or forfeited if the agreement ends early or payments are missed." },
-    { "id": "collateral_recovery", "label": "Collateral repossession or auction", "patterns": ["repossession|repossess(?:ed|ion)?", "seiz(?:e|ure)\\s+(?:of\\s+)?(?:the\\s+)?(?:pledged\\s+)?(?:collateral|asset|vehicle|property|gold|goods)", "auction(?:s|ed|ing)?\\s+(?:of\\s+)?(?:the\\s+)?(?:pledged\\s+)?(?:collateral|asset|vehicle|property|gold|goods)", "(?:collateral|asset|vehicle|property|gold|goods)\\s+(?:may\\s+be\\s+)?(?:seized|sold|auctioned|recovered|repossessed)", "(?:pledged\\s+)?(?:collateral|asset|vehicle|property|gold|goods)[^.;]{0,45}\\b(?:seized|sold|auctioned|recovered|repossessed)\\b"], "category": "collateral_recovery", "severity": 5, "minimumRiskBand": "high", "riskReason": "The lender may seize or sell collateral after default.", "explanation": "The agreement permits recovery or sale of pledged property after a missed-payment trigger." },
-    { "id": "acceleration_cross_default", "label": "Acceleration or cross-default", "patterns": ["accelerat(?:e|ed|ion)\\s+(?:the\\s+)?(?:entire\\s+)?balance", "cross[- ]default", "entire\\s+balance\\s+becomes\\s+(?:immediately\\s+)?due"], "category": "default_terms", "severity": 4, "minimumRiskBand": "medium", "riskReason": "A default can make a larger balance due or trigger default across agreements.", "explanation": "A missed obligation may accelerate repayment or trigger default under another agreement." },
-    { "id": "ownership_after_final_payment", "label": "Ownership only after final payment", "patterns": ["ownership\\s+(?:transfers?|vests?)\\s+only\\s+after\\s+(?:the\\s+)?(?:final|last)\\s+payment", "own(?:er|ership)?\\s+(?:the\\s+)?(?:item|property|asset|vehicle|goods)?\\s*only\\s+after\\s+(?:all\\s+)?payments?", "title\\s+(?:transfers?|passes)\\s+only\\s+after\\s+(?:the\\s+)?(?:final|last)\\s+payment", "become\\s+(?:the\\s+)?owner\\s+only\\s+after\\s+(?:the\\s+)?(?:final|last)\\s+payment", "ownership[^.;]{0,70}\\b(?:after|once|when)\\s+(?:all|the\\s+last|the\\s+final)\\s+(?:scheduled\\s+)?payments?\\s+(?:are\\s+)?(?:made|paid|completed)", "(?:asset|item|property|vehicle|goods|title|ownership)[^.;]{0,70}\\b(?:transfers?|passes|vests?)[^.;]{0,70}\\b(?:after|once|when)\\b[^.;]{0,70}\\b(?:all|final|last)\\s+(?:scheduled\\s+)?(?:payments?|installments?|instalments?)\\b[^.;]{0,30}\\b(?:made|paid|completed)\\b"], "category": "ownership_terms", "severity": 3, "minimumRiskBand": "medium", "riskReason": "The buyer does not own the item until all required payments are made.", "explanation": "Ownership is conditional on completing the full payment schedule." },
-    { "id": "no_credit_check", "polarityOverride": "asserted", "label": "No-credit-check marketing", "patterns": ["no\\s+credit\\s+(?:check|needed|needed|required)|without\\s+a\\s+credit\\s+check"], "category": "pricing_access_signal", "severity": 3, "riskReason": "No-credit-check marketing can accompany high-cost or restrictive terms; verify the total payable and ownership conditions.", "explanation": "No-credit-check access is a pricing-risk signal and does not establish that the offer is affordable." },
-    { "id": "early_purchase_option", "label": "Early-purchase option", "patterns": ["early[- ]purchase\\s+option", "option\\s+to\\s+(?:purchase|buy)\\s+(?:the\\s+)?(?:item|property|asset)?\\s*early", "early\\s+buy[- ]out"], "category": "contract_option", "severity": 1, "explanation": "The agreement describes an option to purchase before the scheduled end." },
-    { "id": "penal_rate", "label": "Penal or overdue interest rate", "patterns": ["penal\\s+interest", "penalty\\s+(?:apr|rate|interest)", "default\\s+(?:apr|rate|interest)", "overdue\\s+(?:apr|rate|interest)", "late\\s+(?:payment\\s+)?interest", "delay\\s+interest"], "category": "penalty", "severity": 4, "minimumRiskBand": "high", "riskReason": "The stated rate applies because of late payment or default, not to the ordinary balance.", "explanation": "This is a conditional default rate and is separate from the agreement's base rate." },
-    { "id": "upfront_deduction", "label": "Amount deducted from proceeds", "patterns": ["(?:deduct(?:ed|ing)?|withheld)\\s+(?:upfront\\s+)?from\\s+(?:the\\s+)?(?:loan\\s+)?(?:proceeds|disbursal|disbursement|advance)", "upfront\\s+deduction\\s+from\\s+(?:the\\s+)?(?:proceeds|disbursal|disbursement)"], "category": "upfront_fee", "severity": 3, "suppressWhen": ["(?:processing|origination|administrative)\\s+fee"], "explanation": "An upfront amount is withheld from the cash proceeds even if the loan balance remains unchanged." },
-    { "id": "advance_fee_demand", "label": "Payment demanded before credit is released", "patterns": ["(?:upfront|advance|release|clearance|insurance)\\s+(?:fee|charge|deposit|payment)[^.;]{0,100}\\b(?:before|prior\\s+to|to\\s+release|for\\s+release)\\b[^.;]{0,100}\\b(?:loan|credit|funds|disbursal|disbursement|advance)\\b", "\\b(?:before|prior\\s+to)\\b[^.;]{0,80}\\b(?:loan|credit|funds|disbursal|disbursement)\\b[^.;]{0,70}\\b(?:pay|send|wire|transfer|deposit)\\b[^.;]{0,50}\\b(?:fee|charge|payment|deposit)\\b"], "category": "fraud", "severity": 5, "minimumRiskBand": "high", "riskReason": "A fee is demanded before the promised credit or funds are released.", "explanation": "An advance payment before credit delivery is a strong fraud warning." },
-    { "id": "unilateral_term_change", "label": "Unilateral change to rates or terms", "patterns": ["(?:we|lender|creditor|provider)[^.;]{0,100}\\b(?:may|can|reserve the right to)\\b[^.;]{0,70}\\b(?:unilaterally\\s+)?(?:change|modify|increase|revise)\\b[^.;]{0,60}\\b(?:terms|rates|fees|charges|payment)\\b", "\\b(?:terms|rates|fees|charges|payment)[^.;]{0,70}\\b(?:may|can)\\s+be\\s+(?:changed|modified|increased|revised)\\b[^.;]{0,70}\\b(?:without\\s+notice|at\\s+our\\s+discretion|unilaterally)\\b"], "category": "legal", "severity": 4, "minimumRiskBand": "medium", "riskReason": "The provider can change rates, fees, or terms without the borrower's agreement.", "explanation": "A unilateral change clause can make the repayment terms uncertain." }
-    ,{ "id": "dealer_compensation", "label": "Dealer compensation or markup", "patterns": ["dealer\\s+(?:may\\s+)?receive\\s+compensation", "dealer\\s+compensation", "dealer\\s+markup", "kickbacks?", "commissions?"], "category": "conflict_of_interest", "severity": 3, "explanation": "The dealer or intermediary may receive compensation tied to this transaction." },
-    { "id": "discount_offset", "label": "Discount or interest offset", "patterns": ["\\b(?:instant\\s+)?discount\\b", "\\bcashback\\b", "\\brebate\\b", "\\boffset\\s+credit\\b", "discount.{0,60}(?:offset|interest)|offset.{0,60}discount"], "category": "offset", "severity": 0, "explanation": "A stated discount or cashback offsets the transaction cost." },
-    { "id": "generic_tax", "label": "Tax on financing cost", "patterns": ["(?:(?:gst|vat|hst|pst|sales\\s+tax)\\s*(?:(?:@|at)\\s*)?\\d+(?:\\.\\d+)?%|tax(?:es)?\\s*(?:(?:@|at)\\s*)?\\d+(?:\\.\\d+)?%)", "tax(?:es)?\\s+(?:of|at)\\s+\\d+(?:\\.\\d+)?%"], "category": "tax", "severity": 2, "explanation": "Tax is applied to a stated financing amount or basis." }
+    {"id": "origination", "label": "Origination fee", "patterns": ["origination\\s+fee", "loan\\s+setup\\s+fee"], "category": "upfront_fee", "severity": 2, "explanation": "Upfront charge for creating or setting up the credit.", "defaultBasis": "principal"},
+    {"id": "documentation_fee", "label": "Documentation fee", "patterns": ["documentation\\s+fee", "document\\s+fee", "doc\\s+fee"], "category": "upfront_fee", "severity": 2, "explanation": "A documentation charge is added to the transaction cost.", "defaultBasis": "principal"},
+    {"id": "processing", "label": "Processing fee", "patterns": ["processing\\s+fee", "administrative\\s+fee"], "category": "upfront_fee", "severity": 2, "explanation": "Upfront processing or administration charge.", "defaultBasis": "principal"},
+    {"id": "convenience", "label": "Convenience fee", "patterns": ["convenience\\s+fee", "transaction\\s+fee"], "category": "recurring_fee", "severity": 2, "explanation": "Charge applied for processing a payment or transaction."},
+    {"id": "late_payment", "label": "Late or missed-payment fee", "patterns": ["late\\s+(?:(?:payment|installment|instalment)\\s+)?(?:fee|charge)", "missed\\s+(?:payment|installment|instalment)\\s+(?:fee|charge)", "overdue\\s+(?:fee|charge)"], "category": "penalty", "severity": 3, "explanation": "Charge triggered by a late or missed payment."},
+    {"id": "general_fees", "label": "General fees", "fallbackOnly": true, "patterns": ["\\b(?:hidden|extra|additional)\\s+(?:fees?|charges?)\\b", "\\bfees?\\s*:\\s*(?:nil|none|zero)\\b", "\\bfee\\s+of\\s+any\\s+kind\\b"], "category": "upfront_fee", "severity": 2, "explanation": "The clause describes a general transaction charge."},
+    {"id": "reschedule", "label": "Rescheduling fee", "patterns": ["reschedul(?:e|ing)\\s+fee"], "category": "penalty", "severity": 2, "explanation": "Charge for moving a payment date."},
+    {"id": "annual", "label": "Annual fee", "patterns": ["annual\\s+fee", "yearly\\s+fee"], "category": "recurring_fee", "severity": 2, "explanation": "Recurring annual account charge."},
+    {"id": "balance_transfer", "label": "Balance-transfer fee", "patterns": ["balance\\s+transfer\\s+fee"], "category": "upfront_fee", "severity": 2, "explanation": "Charge for transferring a balance."},
+    {"id": "cash_advance", "label": "Cash-advance fee", "patterns": ["cash\\s+advance\\s+fee"], "category": "upfront_fee", "severity": 3, "explanation": "Charge for a cash advance."},
+    {"id": "foreign_transaction", "label": "Foreign-transaction fee", "patterns": ["foreign\\s+transaction\\s+fee"], "category": "upfront_fee", "severity": 1, "explanation": "Charge on foreign-currency transactions."},
+    {"id": "payment_protection", "label": "Payment-protection add-on", "patterns": ["payment\\s+protection\\s+plan", "payment\\s+insurance", "credit\\s+insurance"], "category": "financed_addon", "severity": 3, "explanation": "Optional or financed payment-protection product; verify enrollment and cancellation terms."},
+    {"id": "gap", "label": "GAP coverage add-on", "patterns": ["gap\\s+(?:coverage|insurance|protection)"], "category": "financed_addon", "severity": 3, "explanation": "Vehicle add-on that may cover a shortfall between vehicle value and loan balance."},
+    {"id": "service_contract", "label": "Service contract or warranty add-on", "patterns": ["service\\s+contract", "extended\\s+warranty"], "category": "financed_addon", "severity": 2, "explanation": "Optional protection product that may be included in the financed amount."},
+    {"id": "tax_interest", "label": "Tax on interest or fees", "patterns": ["(?:gst|vat|sales\\s+tax)\\s+(?:on|of)\\s+(?:interest|fees?)", "tax(?:es)?\\s+on\\s+(?:interest|fees?)"], "category": "tax", "severity": 2, "explanation": "Tax assessed on interest or loan fees."},
+    {"id": "prepayment", "label": "Prepayment or foreclosure charge", "patterns": ["prepayment\\s+(?:penalty|charge|fee)", "foreclosure\\s+(?:charge|fee|penalty)"], "category": "prepayment", "severity": 2, "explanation": "Charge for repaying or closing the loan early."},
+    {"id": "negative_equity", "label": "Rolled-in negative equity", "patterns": ["negative\\s+equity", "roll(?:ed)?\\s+over\\s+(?:the\\s+)?(?:old\\s+)?loan\\s+balance", "prior\\s+loan\\s+balance"], "category": "negative_equity", "severity": 3, "explanation": "Prior debt may be rolled into the new financing."},
+    {"id": "forfeiture", "label": "Forfeiture of prior payments", "patterns": ["forfeit(?:ure|s|ed)?\\s+(?:of\\s+)?(?:prior|previous|past|all|any)?\\s*(?:payments?|amounts?|rent|installments?)", "forfeit\\w*[^.;]{0,35}\\b(?:payments?|amounts?|rent|installments?)\\b", "lose\\s+(?:all\\s+)?(?:prior|previous|past)?\\s*(?:payments?|amounts?|rent)", "(?:prior|previous|past)\\s+(?:payments?|rent|installments?)\\s+(?:will\\s+be|are|is|become)\\s+(?:forfeited|nonrefundable|not\\s+refunded)", "(?:payments?|rent|amounts?)\\s+already\\s+paid\\s+(?:will\\s+be|are|is)\\s+(?:forfeited|kept|not\\s+refunded)"], "category": "forfeiture", "severity": 5, "minimumRiskBand": "high", "riskReason": "The agreement can forfeit amounts already paid.", "explanation": "Prior payments may be kept or forfeited if the agreement ends early or payments are missed.", "quantified": false},
+    {"id": "collateral_recovery", "label": "Collateral repossession or auction", "patterns": ["repossession|repossess(?:ed|ion)?", "seiz(?:e|ure)\\s+(?:of\\s+)?(?:the\\s+)?(?:pledged\\s+)?(?:collateral|asset|vehicle|property|gold|goods)", "auction(?:s|ed|ing)?\\s+(?:of\\s+)?(?:the\\s+)?(?:pledged\\s+)?(?:collateral|asset|vehicle|property|gold|goods)", "(?:collateral|asset|vehicle|property|gold|goods)\\s+(?:may\\s+be\\s+)?(?:seized|sold|auctioned|recovered|repossessed)", "(?:pledged\\s+)?(?:collateral|asset|vehicle|property|gold|goods)[^.;]{0,45}\\b(?:seized|sold|auctioned|recovered|repossessed)\\b"], "category": "collateral_recovery", "severity": 5, "minimumRiskBand": "high", "suppressWhen": ["repossess\\w*[^.;]{0,120}without\\s+(?:(?:prior|further|any|advance)\\s+)?notice", "without\\s+(?:(?:prior|further|any|advance)\\s+)?notice[^.;]{0,120}repossess\\w*"], "riskReason": "The lender may seize or sell collateral after default.", "explanation": "The agreement permits recovery or sale of pledged property after a missed-payment trigger.", "quantified": false},
+    {"id": "acceleration", "label": "Acceleration of the balance", "patterns": ["accelerat(?:e|ed|ion)\\s+(?:the\\s+)?(?:entire\\s+|full\\s+)?balance", "entire\\s+balance\\s+becomes\\s+(?:immediately\\s+)?due", "all\\s+(?:amounts|balances?)\\s+(?:become|becomes|are)\\s+(?:immediately\\s+)?due"], "category": "acceleration", "severity": 3, "minimumRiskBand": "caution", "riskReason": "A default can make the full balance due earlier than scheduled.", "explanation": "An acceleration clause can make the remaining balance due after a specified breach.", "quantified": false},
+    {"id": "cross_default", "label": "Cross-default", "patterns": ["cross[- ]default", "default under (?:any )?(?:other|separate|additional) agreement", "default(?:s|ed)? under (?:any )?other (?:loan|agreement|account)"], "category": "cross_default", "severity": 3, "minimumRiskBand": "caution", "riskReason": "A breach of a separate agreement may trigger default under this contract.", "explanation": "Cross-default terms can connect this loan to obligations in another agreement.", "quantified": false},
+    {"id": "default_event", "label": "Default trigger", "patterns": ["\\b(?:upon|following|after|event of|occurrence of|a|any|borrower['’]s)\\s+(?:payment\\s+)?default\\b", "\\bdefault\\b[^.;]{0,55}\\b(?:occurs|continues|under this agreement|payment|obligation)\\b"], "category": "default_event", "severity": 2, "riskReason": "The clause defines a default event that can activate other contract remedies.", "explanation": "A default trigger identifies when the agreement's remedies may apply.", "quantified": false},
+    {"id": "ownership_after_final_payment", "label": "Ownership only after final payment", "patterns": ["ownership\\s+(?:transfers?|vests?)\\s+only\\s+after\\s+(?:the\\s+)?(?:final|last)\\s+payment", "own(?:er|ership)?\\s+(?:the\\s+)?(?:item|property|asset|vehicle|goods)?\\s*only\\s+after\\s+(?:all\\s+)?payments?", "title\\s+(?:transfers?|passes)\\s+only\\s+after\\s+(?:the\\s+)?(?:final|last)\\s+payment", "become\\s+(?:the\\s+)?owner\\s+only\\s+after\\s+(?:the\\s+)?(?:final|last)\\s+payment", "ownership[^.;]{0,70}\\b(?:after|once|when)\\s+(?:all|the\\s+last|the\\s+final)\\s+(?:scheduled\\s+)?payments?\\s+(?:are\\s+)?(?:made|paid|completed)", "(?:asset|item|property|vehicle|goods|title|ownership)[^.;]{0,70}\\b(?:transfers?|passes|vests?)[^.;]{0,70}\\b(?:after|once|when)\\b[^.;]{0,70}\\b(?:all|final|last)\\s+(?:scheduled\\s+)?(?:payments?|installments?|instalments?)\\b[^.;]{0,30}\\b(?:made|paid|completed)\\b"], "category": "ownership_terms", "severity": 3, "minimumRiskBand": "caution", "riskReason": "The buyer does not own the item until all required payments are made.", "explanation": "Ownership is conditional on completing the full payment schedule.", "quantified": false},
+    {"id": "no_credit_check", "polarityOverride": "asserted", "label": "No-credit-check marketing", "patterns": ["no\\s+credit\\s+(?:check|needed|needed|required)|without\\s+a\\s+credit\\s+check"], "category": "pricing_access_signal", "severity": 3, "riskReason": "No-credit-check marketing can accompany high-cost or restrictive terms; verify the total payable and ownership conditions.", "explanation": "No-credit-check access is a pricing-risk signal and does not establish that the offer is affordable.", "quantified": false},
+    {"id": "early_purchase_option", "label": "Early-purchase option", "patterns": ["early[- ]purchase\\s+option", "option\\s+to\\s+(?:purchase|buy)\\s+(?:the\\s+)?(?:item|property|asset)?\\s*early", "early\\s+buy[- ]out"], "category": "contract_option", "severity": 1, "explanation": "The agreement describes an option to purchase before the scheduled end.", "quantified": false},
+    {"id": "penal_rate", "label": "Penal or overdue interest rate", "patterns": ["penal\\s+interest", "penalty\\s+(?:apr|rate|interest)", "default\\s+(?:apr|rate|interest)", "overdue\\s+(?:apr|rate|interest)", "late\\s+(?:payment\\s+)?interest", "delay\\s+interest"], "category": "penalty", "severity": 4, "minimumRiskBand": "high", "riskReason": "The stated rate applies because of late payment or default, not to the ordinary balance.", "explanation": "This is a conditional default rate and is separate from the agreement's base rate."},
+    {"id": "upfront_deduction", "label": "Amount deducted from proceeds", "patterns": ["(?:deduct(?:ed|ing)?|withheld)\\s+(?:upfront\\s+)?from\\s+(?:the\\s+)?(?:loan\\s+)?(?:proceeds|disbursal|disbursement|advance)", "upfront\\s+deduction\\s+from\\s+(?:the\\s+)?(?:proceeds|disbursal|disbursement)"], "category": "upfront_fee", "severity": 3, "suppressWhen": ["(?:processing|origination|administrative)\\s+fee"], "explanation": "An upfront amount is withheld from the cash proceeds even if the loan balance remains unchanged.", "quantified": false},
+    {"id": "advance_fee_demand", "label": "Payment demanded before credit is released", "patterns": ["(?:upfront|advance|release|clearance|insurance)\\s+(?:fee|charge|deposit|payment)[^.;]{0,100}\\b(?:before|prior\\s+to|to\\s+release|for\\s+release)\\b[^.;]{0,100}\\b(?:loan|credit|funds|disbursal|disbursement|advance)\\b", "\\b(?:before|prior\\s+to)\\b[^.;]{0,80}\\b(?:loan|credit|funds|disbursal|disbursement)\\b[^.;]{0,70}\\b(?:pay|send|wire|transfer|deposit)\\b[^.;]{0,50}\\b(?:fee|charge|payment|deposit)\\b", "\\bto\\s+(?:release|unlock|receive|disburse)\\b[^.;]{0,65}\\b(?:funds|loan|credit|proceeds)\\b[^.;]{0,90}\\b(?:pay|send|transfer|deposit)\\b", "\\b(?:pay|send|transfer)\\b[^.;]{0,80}\\b(?:fee|deposit|payment)\\b[^.;]{0,90}\\b(?:to|before)\\s+(?:release|unlock|receive|disburse)\\b"], "category": "fraud", "severity": 5, "minimumRiskBand": "critical", "riskReason": "A fee is demanded before the promised credit or funds are released.", "explanation": "An advance payment before credit delivery is a strong fraud warning."},
+    {"id": "unilateral_term_change", "label": "Unilateral change to rates or terms", "patterns": ["(?:we|lender|creditor|provider)[^.;]{0,100}\\b(?:may|can|reserve the right to)\\b[^.;]{0,90}\\b(?:unilaterally\\s+)?(?:change|modify|increase|revise)\\b[^.;]{0,80}\\b(?:terms|rates|fees|charges|payment)\\b", "\\b(?:terms|rates|fees|charges|payment)[^.;]{0,70}\\b(?:may|can)\\s+be\\s+(?:changed|modified|increased|revised)\\b[^.;]{0,70}\\b(?:without\\s+notice|at\\s+our\\s+discretion|unilaterally)\\b", "(?:we|lender|creditor|provider)[^.;]{0,100}\\b(?:may|can)\\b[^.;]{0,90}\\b(?:in|at)\\s+(?:our|its|the\\s+lender['’]s)\\s+(?:sole|absolute)\\s+discretion[^.;]{0,75}\\b(?:change|modify|increase|revise)\\b[^.;]{0,75}\\b(?:terms|rates|fees|charges|payment|interest|apr)\\b"], "category": "legal", "severity": 4, "minimumRiskBand": "high", "riskReason": "The provider can change rates, fees, or terms without the borrower's agreement.", "explanation": "A unilateral change clause can make the repayment terms uncertain.", "quantified": false},
+    {"id": "dealer_compensation", "label": "Dealer compensation or markup", "patterns": ["dealer\\s+(?:may\\s+)?receive\\s+compensation", "dealer\\s+compensation", "dealer\\s+markup", "kickbacks?", "commissions?"], "category": "conflict_of_interest", "severity": 3, "explanation": "The dealer or intermediary may receive compensation tied to this transaction."},
+    {"id": "discount_offset", "label": "Discount or interest offset", "patterns": ["\\b(?:instant\\s+)?discount\\b", "\\bcashback\\b", "\\brebate\\b", "\\boffset\\s+credit\\b", "discount.{0,60}(?:offset|interest)|offset.{0,60}discount"], "category": "offset", "severity": 0, "explanation": "A stated discount or cashback offsets the transaction cost."},
+    {"id": "generic_tax", "label": "Tax on financing cost", "patterns": ["(?:(?:gst|vat|hst|pst|sales\\s+tax)\\s*(?:(?:@|at)\\s*)?\\d+(?:\\.\\d+)?%|tax(?:es)?\\s*(?:(?:@|at)\\s*)?\\d+(?:\\.\\d+)?%)", "tax(?:es)?\\s+(?:of|at)\\s+\\d+(?:\\.\\d+)?%"], "category": "tax", "severity": 2, "explanation": "Tax is applied to a stated financing amount or basis."},
+    {"id": "alternative_payment_demand", "label": "Gift card, cryptocurrency or wire payment", "patterns": ["\\b(?:pay|send|transfer|remit|deposit|payment|paid)\\b[^.;]{0,130}\\b(?:gift\\s*cards?|crypto(?:currency|currencies)?|wire(?:\\s+transfer)?)\\b|\\b(?:gift\\s*cards?|crypto(?:currency|currencies)?|wire\\s+transfer)\\b[^.;]{0,60}\\b(?:only|required|payment|pay)\\b"], "category": "fraud", "severity": 5, "explanation": "The clause requests payment through the stated gift card, cryptocurrency or wire channel.", "quantified": false},
+    {"id": "urgency_deadline", "label": "Urgent deadline", "patterns": ["\\b(?:offer|approval|opportunity|deal)\\b[^.;]{0,65}\\b(?:expires?|ends?|deadline|limited\\s+time)\\b|\\b(?:act|pay|respond|transfer)\\b[^.;]{0,30}\\b(?:now|immediately|today|within\\s+\\d+\\s+hours?)\\b"], "category": "pressure", "severity": 3, "explanation": "A short deadline pressures the recipient to act before reviewing the terms.", "quantified": false},
+    {"id": "secrecy_demand", "label": "Secrecy from bank or family", "patterns": ["\\b(?:do\\s+not|don[\\x27’]t|never|must\\s+not)\\s+(?:discuss|tell|inform|disclose|share|consult|contact)\\b[^.;]{0,110}\\b(?:bank|family|relatives?|spouse|advis[oe]r)\\b|\\b(?:keep|remain)\\b[^.;]{0,40}\\b(?:secret|confidential)\\b[^.;]{0,65}\\b(?:bank|family|relatives?|spouse)\\b"], "category": "fraud", "severity": 5, "explanation": "The clause discourages independent checks with a bank, family member or adviser.", "quantified": false, "polarityOverride": "asserted"},
+    {"id": "unofficial_contact_only", "label": "Unofficial contact channel only", "patterns": ["\\b(?:contact|communicate|message|reach|chat)\\b[^.;]{0,70}\\b(?:whats\\s*app|telegram|signal|social\\s+media|personal\\s+(?:email|number))\\b[^.;]{0,25}\\bonly\\b|\\bonly\\b[^.;]{0,35}\\b(?:whats\\s*app|telegram|signal|social\\s+media)\\b"], "category": "fraud", "severity": 5, "explanation": "Contact is restricted to an informal channel, limiting independent verification.", "quantified": false},
+    {"id": "guaranteed_approval", "label": "Guaranteed approval", "patterns": ["\\b(?:100\\s*%\\s*)?guaranteed\\s+(?:loan\\s+)?(?:approval|acceptance)\\b|\\bapproval\\s+(?:is\\s+)?guaranteed\\b"], "category": "pricing_access_signal", "severity": 4, "explanation": "An unconditional approval promise should be checked against the actual eligibility and release terms.", "quantified": false},
+    {"id": "unilateral_rate_increase", "label": "Unilateral rate increase", "patterns": ["\\b(?:lender|creditor|provider|we)\\b[^.;]{0,85}\\b(?:may|can|reserve\\s+the\\s+right\\s+to)\\b[^.;]{0,95}\\b(?:increase|raise|revise|change)\\b[^.;]{0,80}\\b(?:interest|apr|rate)\\b|\\b(?:interest|apr|rate)\\b[^.;]{0,65}\\b(?:increased|raised|changed)\\b[^.;]{0,85}\\b(?:unilaterally|at\\s+(?:our|its|the\\s+lender[\\x27’]s)\\s+discretion|without\\s+(?:notice|consent))\\b|(?:we|lender|creditor|provider)[^.;]{0,100}\\b(?:may|can)\\b[^.;]{0,90}\\b(?:in|at)\\s+(?:our|its|the\\s+lender['’]s)\\s+(?:sole|absolute)\\s+discretion[^.;]{0,75}\\b(?:increase|raise|change|revise)\\b[^.;]{0,60}\\b(?:interest|apr|rate)\\b"], "category": "rate_change", "severity": 4, "explanation": "The lender can increase the rate at its discretion under the stated clause.", "quantified": false, "minimumRiskBand": "high"},
+    {"id": "seizure_without_notice", "label": "Seizure or repossession without notice", "patterns": ["\\b(?:repossess\\w*|seiz\\w*|auction\\w*|recover\\w*)\\b[^.;]{0,120}\\bwithout\\s+(?:(?:prior|further|any|advance)\\s+)?notice\\b|\\bwithout\\s+(?:(?:prior|further|any|advance)\\s+)?notice\\b[^.;]{0,120}\\b(?:repossess\\w*|seiz\\w*|auction\\w*)\\b"], "category": "collateral_recovery", "severity": 5, "explanation": "The clause permits seizure or repossession without prior notice.", "quantified": false, "minimumRiskBand": "critical"},
+    {"id": "jury_trial_waiver", "label": "Jury trial waiver", "patterns": ["\\b(?:waiv\\w*|give\\s+up|relinquish\\w*)\\b[^.;]{0,90}\\bjury[- ]trial\\b|\\bjury[- ]trial\\b[^.;]{0,65}\\bwaiv\\w*\\b"], "category": "legal", "severity": 4, "explanation": "The borrower gives up a jury trial for covered disputes.", "quantified": false},
+    {"id": "class_action_waiver", "label": "Class action waiver", "patterns": ["\\b(?:waiv\\w*|give\\s+up|relinquish\\w*)\\b[^.;]{0,100}\\bclass[- ]action\\b|\\bclass[- ]action\\b[^.;]{0,75}\\b(?:waiv\\w*|prohibited|not\\s+permitted)\\b"], "category": "legal", "severity": 4, "explanation": "The clause limits participation in a class action.", "quantified": false},
+    {"id": "binding_arbitration", "label": "Binding arbitration", "patterns": ["\\b(?:binding|mandatory|compulsory)\\s+arbitration\\b|\\b(?:disputes?|claims?)\\b[^.;]{0,70}\\b(?:shall|must|will)\\b[^.;]{0,35}\\barbitrat\\w*\\b"], "category": "legal", "severity": 3, "explanation": "Covered disputes must follow the specified arbitration process.", "quantified": false},
+    {"id": "confession_of_judgment", "label": "Confession of judgment", "patterns": ["\\bconfess(?:ion)?\\s+(?:of\\s+)?judg(?:e)?ment\\b|\\bcognovit\\b"], "category": "legal", "severity": 5, "explanation": "The clause authorizes judgment under its stated conditions, potentially limiting the opportunity to contest the claim.", "quantified": false},
+    {"id": "after_acquired_property", "label": "After-acquired property", "patterns": ["\\bafter[- ]acquired\\s+(?:property|assets?|collateral)\\b|\\b(?:property|assets?)\\b[^.;]{0,55}\\b(?:hereafter|subsequently)\\s+acquired\\b"], "category": "collateral_recovery", "severity": 4, "explanation": "The security interest may extend to property acquired after signing.", "quantified": false}
   ],
   "claimCatalog": [
-    { "id": "no_cost", "label": "No-cost claim", "pattern": "no[- ]cost|100%\\s+free|completely\\s+free", "predicates": ["listed_charge", "positive_net_cost"] },
-    { "id": "free", "label": "Free claim", "pattern": "(?<!interest[- ])\\bfree\\b", "predicates": ["listed_charge"] },
-    { "id": "no_fees", "label": "No-fees claim", "pattern": "no\\s+(?:additional\\s+)?fees?|zero\\s+fees?", "predicates": ["listed_charge"] },
-    { "id": "interest_free", "label": "Interest-free claim", "pattern": "interest[- ]free|no\\s+interest|0%\\s+(?:apr|interest)", "predicates": ["positive_rate"] },
-    { "id": "optional", "label": "Optional claim", "pattern": "optional|opt\\s+out", "predicates": ["included_despite_optional"] },
-    { "id": "guaranteed", "label": "Guaranteed claim", "pattern": "guaranteed(?:\\s+approval|\\s+rate|\\s+acceptance)?", "predicates": ["conditional_guarantee"] },
-    { "id": "conditional_language", "label": "Conditional wording", "pattern": "\\b(?:may|might|could)\\b", "predicates": ["hedge_word_present"] },
-    { "id": "own_it_today", "label": "Immediate-ownership claim", "pattern": "own\\s+it\\s+today\\s+for\\s+just\\s+(?:[$€£₹]|Rs\\.?\\s*)?\\d+(?:,\\d{2,3})*(?:\\.\\d+)?\\s*(?:per|a)\\s+(?:day|week|month|year)", "predicates": ["ownership_after_all_payments"] },
-    { "id": "no_credit_needed", "label": "No-credit-needed marketing", "pattern": "no\\s+credit\\s+(?:needed|required|check)|without\\s+a\\s+credit\\s+check", "predicates": ["predatory_pricing_signal"] }
+    {"id": "no_cost", "label": "No-cost claim", "pattern": "no[- ]cost|100%\\s+free|completely\\s+free", "predicates": ["listed_charge", "positive_net_cost"]},
+    {"id": "free", "label": "Free claim", "pattern": "(?<!interest[- ])\\bfree\\b", "predicates": ["listed_charge"]},
+    {"id": "no_fees", "label": "No-fees claim", "pattern": "no\\s+(?:additional\\s+)?fees?|zero\\s+fees?", "predicates": ["listed_charge"]},
+    {"id": "interest_free", "label": "Interest-free claim", "pattern": "interest[- ]free|no\\s+interest|0%\\s+(?:apr|interest)", "predicates": ["positive_rate"]},
+    {"id": "optional", "label": "Optional claim", "pattern": "optional|opt\\s+out", "predicates": ["included_despite_optional"]},
+    {"id": "guaranteed", "label": "Guaranteed claim", "pattern": "guaranteed(?:\\s+approval|\\s+rate|\\s+acceptance)?", "predicates": ["conditional_guarantee"]},
+    {"id": "conditional_language", "label": "Conditional wording", "pattern": "\\b(?:may|might|could)\\b", "predicates": ["hedge_word_present"]},
+    {"id": "own_it_today", "label": "Immediate-ownership claim", "pattern": "own\\s+it\\s+today\\s+for\\s+just\\s+(?:[$€£₹]|Rs\\.?\\s*)?\\d+(?:,\\d{2,3})*(?:\\.\\d+)?\\s*(?:per|a)\\s+(?:day|week|month|year)", "predicates": ["ownership_after_all_payments"]},
+    {"id": "no_credit_needed", "label": "No-credit-needed marketing", "pattern": "no\\s+credit\\s+(?:needed|required|check)|without\\s+a\\s+credit\\s+check", "predicates": ["predatory_pricing_signal"]}
   ],
   "riskRules": [
-    { "id": "claim_contradiction", "category": "claims", "weight": 20, "pattern": "" },
-    { "id": "deferred_interest", "category": "pricing", "weight": 20, "pattern": "deferred\\s+interest|retroactive(?:ly)?" },
-    { "id": "arbitration_waiver", "category": "legal", "weight": 15, "pattern": "waive[\\s\\S]{0,120}class action|binding arbitration|class[- ]action[^.;]{0,80}rights?[^.;]{0,50}waived" },
-    { "id": "automatic_optional_addon", "category": "claims", "weight": 15, "pattern": "automatically added[\\s\\S]{0,100}(?:opt out|unless you opt)" },
-    { "id": "data_sharing", "category": "privacy", "weight": 8, "pattern": "share your data with partners|share data with partners" },
-    { "id": "credit_reporting", "category": "credit", "weight": 8, "pattern": "report missed payments? to credit bureaus" },
-    { "id": "penalty_apr", "category": "pricing", "weight": 15, "pattern": "\\bpenalty\\s*apr\\b" },
-    { "id": "variable_rate", "category": "pricing", "weight": 8, "pattern": "\\b(?:variable|adjustable|floating)\\b[^.;]{0,80}\\b(?:prime\\s+rate|interest|apr|rate)\\b" },
-    { "id": "indefinite_penalty", "category": "pricing", "weight": 10, "pattern": "\\b(?:penalty|apr|rate)\\b[\\s\\S]{0,80}\\bindefinitely\\b|\\bindefinitely\\b[\\s\\S]{0,80}\\b(?:penalty|apr|rate)\\b" },
-    { "id": "promotional_rate", "category": "pricing", "weight": 5, "pattern": "\\b(?:introductory|promotional)\\s*(?:apr|rate)?\\b" },
-    { "id": "high_apr", "category": "pricing", "weight": 15, "pattern": "" },
-    { "id": "advance_fee_scam", "category": "fraud", "weight": 25, "pattern": "" }
-    ,{ "id": "dealer_compensation", "category": "conflict_of_interest", "weight": 12, "pattern": "dealer\\s+(?:may\\s+)?receive\\s+compensation|dealer\\s+markup|kickbacks?|commissions?" },
-    { "id": "no_credit_access_signal", "category": "pricing_access_signal", "weight": 8, "pattern": "no\\s+credit\\s+(?:check|needed|required)|without\\s+a\\s+credit\\s+check" }
+    {"id": "claim_contradiction", "category": "claims", "weight": 20, "pattern": "", "severity": 4},
+    {"id": "deferred_interest", "category": "pricing", "weight": 20, "pattern": "deferred\\s+interest|retroactive(?:ly)?", "severity": 5},
+    {"id": "arbitration_waiver", "category": "legal", "weight": 15, "pattern": "waive[\\s\\S]{0,120}class action|binding arbitration|class[- ]action[^.;]{0,80}rights?[^.;]{0,50}waived", "severity": 4},
+    {"id": "automatic_optional_addon", "category": "claims", "weight": 15, "pattern": "automatically added[\\s\\S]{0,100}(?:opt out|unless you opt)", "severity": 4},
+    {"id": "data_sharing", "category": "privacy", "weight": 8, "pattern": "share your data with partners|share data with partners", "severity": 2},
+    {"id": "credit_reporting", "category": "credit", "weight": 8, "pattern": "report missed payments? to credit bureaus", "severity": 1},
+    {"id": "penalty_apr", "category": "pricing", "weight": 15, "pattern": "\\bpenalty\\s*apr\\b", "severity": 4},
+    {"id": "variable_rate", "category": "pricing", "weight": 8, "pattern": "\\b(?:variable|adjustable|floating)\\b[^.;]{0,80}\\b(?:prime\\s+rate|interest|apr|rate)\\b", "severity": 2},
+    {"id": "indefinite_penalty", "category": "pricing", "weight": 10, "pattern": "\\b(?:penalty|apr|rate)\\b[\\s\\S]{0,80}\\bindefinitely\\b|\\bindefinitely\\b[\\s\\S]{0,80}\\b(?:penalty|apr|rate)\\b", "severity": 4},
+    {"id": "promotional_rate", "category": "pricing", "weight": 5, "pattern": "\\b(?:introductory|promotional)\\s*(?:apr|rate)?\\b", "severity": 1},
+    {"id": "high_apr", "category": "pricing", "weight": 15, "pattern": "", "severity": 4, "threshold": 30},
+    {"id": "advance_fee_scam", "category": "fraud", "weight": 25, "pattern": "", "severity": 5},
+    {"id": "dealer_compensation", "category": "conflict_of_interest", "weight": 12, "pattern": "dealer\\s+(?:may\\s+)?receive\\s+compensation|dealer\\s+markup|kickbacks?|commissions?", "severity": 3},
+    {"id": "no_credit_access_signal", "category": "pricing_access_signal", "weight": 8, "pattern": "no\\s+credit\\s+(?:check|needed|required)|without\\s+a\\s+credit\\s+check", "severity": 3, "polarityOverride": "asserted"}
   ],
-  "riskCategoryCaps": { "claims": 30, "pricing": 30, "legal": 20, "privacy": 10, "credit": 10, "fraud": 30, "fees": 20, "document_type": 25, "conflict_of_interest": 20, "financed_addon": 20, "tax": 15, "penalty": 20, "forfeiture": 30, "collateral_recovery": 30, "default_terms": 25, "ownership_terms": 20, "pricing_access_signal": 20, "contract_option": 10 },
   "categoryGlossary": [
-    { "category": "financed_addon", "term": "Financed add-on", "definition": "An optional product or item added to the financed amount can increase the payment and interest over the loan term." },
-    { "category": "tax", "term": "Tax on financing cost", "definition": "A tax assessed on interest or fees increases the amount paid beyond the stated financing charge." },
-    { "category": "offset", "term": "Discount or offset", "definition": "A discount or cashback reduces cost only to the extent that it is actually applied to the amount owed." },
-    { "category": "upfront_fee", "term": "Upfront fee", "definition": "A one-time charge may be paid at signing or added to the financed balance." },
-    { "category": "recurring_fee", "term": "Recurring fee", "definition": "A repeating charge can add to each payment or recur during the agreement." },
-    { "category": "penalty", "term": "Penalty fee", "definition": "A contingent charge can apply after a missed payment or other specified event." },
-    { "category": "prepayment", "term": "Prepayment charge", "definition": "A charge may apply when the balance is repaid before the scheduled end of the agreement." },
-    { "category": "conflict_of_interest", "term": "Dealer compensation", "definition": "Dealer or intermediary compensation can create an incentive tied to a particular financing offer." },
-    { "category": "negative_equity", "term": "Negative equity", "definition": "Prior debt may be rolled into a new agreement and increase the amount financed." },
-    { "category": "undisclosed_amount", "term": "Unquantified amount", "definition": "A named charge or debt has no stated value, so the disclosed total may be incomplete." }
+    {"category": "financed_addon", "term": "Financed add-on", "definition": "An optional product or item added to the financed amount can increase the payment and interest over the loan term."},
+    {"category": "tax", "term": "Tax on financing cost", "definition": "A tax assessed on interest or fees increases the amount paid beyond the stated financing charge."},
+    {"category": "offset", "term": "Discount or offset", "definition": "A discount or cashback reduces cost only to the extent that it is actually applied to the amount owed."},
+    {"category": "upfront_fee", "term": "Upfront fee", "definition": "A one-time charge may be paid at signing or added to the financed balance."},
+    {"category": "recurring_fee", "term": "Recurring fee", "definition": "A repeating charge can add to each payment or recur during the agreement."},
+    {"category": "penalty", "term": "Penalty fee", "definition": "A contingent charge can apply after a missed payment or other specified event."},
+    {"category": "prepayment", "term": "Prepayment charge", "definition": "A charge may apply when the balance is repaid before the scheduled end of the agreement."},
+    {"category": "conflict_of_interest", "term": "Dealer compensation", "definition": "Dealer or intermediary compensation can create an incentive tied to a particular financing offer."},
+    {"category": "negative_equity", "term": "Negative equity", "definition": "Prior debt may be rolled into a new agreement and increase the amount financed."},
+    {"category": "undisclosed_amount", "term": "Unquantified amount", "definition": "A named charge or debt has no stated value, so the disclosed total may be incomplete."},
+    {"category": "legal", "term": "Legal restrictions", "definition": "Dispute waivers and unilateral change terms can limit legal options or let one party change the agreement."},
+    {"category": "rate_change", "term": "Unilateral rate change", "definition": "The lender may alter the interest rate without a new agreement, making future borrowing costs uncertain."},
+    {"category": "fraud", "term": "Fraud warning", "definition": "Requests for advance payment, secrecy, or hard-to-trace payment methods are strong warning signs that should be independently verified."},
+    {"category": "pressure", "term": "Urgency pressure", "definition": "Short deadlines can pressure a recipient to act before reviewing the contract or verifying the offer."},
+    {"category": "pricing_access_signal", "term": "Approval or access claim", "definition": "Claims about guaranteed approval or no-credit-check access do not establish affordability or fund release."},
+    {"category": "cross_default", "term": "Cross-default", "definition": "A breach of a separate obligation may trigger default under this agreement."},
+    {"category": "acceleration", "term": "Acceleration", "definition": "A default may make the full unpaid balance due earlier than scheduled."},
+    {"category": "default_event", "term": "Default trigger", "definition": "A default trigger defines when the lender may use the agreement's remedies."},
+    {"category": "collateral_recovery", "term": "Collateral recovery", "definition": "The lender may claim, seize, or sell collateral after specified events; notice and scope are material terms."},
+    {"category": "pricing", "term": "Rate basis", "definition": "The rate basis determines how interest is applied; a flat and reducing-balance rate can produce different costs."},
+    {"category": "claims", "term": "Contract claim", "definition": "A document statement may conflict with listed charges, the repayment terms, or the modeled cost."},
+    {"category": "contract_option", "term": "Contract option", "definition": "An option describes a choice available to a party under the stated conditions and deadlines."},
+    {"category": "contradiction", "term": "Conflicting claim", "definition": "The marketing claim conflicts with another stated term or the calculated cost."},
+    {"category": "credit", "term": "Credit reporting", "definition": "Payment history or missed payments may be reported to credit bureaus under the stated terms."},
+    {"category": "forfeiture", "term": "Forfeiture", "definition": "Amounts already paid may be kept after a missed payment or early termination."},
+    {"category": "mismatch", "term": "Amount mismatch", "definition": "The listed amount does not reconcile with the other stated prices, fees, or proceeds."},
+    {"category": "ownership_terms", "term": "Conditional ownership", "definition": "Ownership may transfer only after the stated payment or contract conditions are completed."},
+    {"category": "privacy", "term": "Data sharing", "definition": "The agreement permits sharing personal or payment information with the named parties or partners."},
+    {"category": "unresolved", "term": "Review required", "definition": "The document contains a value or term that could not be resolved confidently from the available text."}
   ],
   "glossary": [
-    { "id": "deferred_interest", "term": "Deferred interest", "pattern": "deferred\\s+interest|retroactive\\w*", "definition": "Interest may be charged later for an earlier promotional period if the required balance is not paid by its deadline." },
-    { "id": "amount_financed", "term": "Amount financed", "pattern": "amount\\s+financed", "definition": "The amount of credit being advanced, which can include optional products and other rolled-in charges." },
-    { "id": "gst_interest", "term": "GST on interest", "pattern": "(?:gst|tax)\\s+(?:on|of)\\s+interest", "definition": "Tax added to interest charges; it increases the total paid beyond the stated interest." },
-    { "id": "foreclosure", "term": "Foreclosure charge", "pattern": "foreclosure", "definition": "A charge that may apply when a loan is paid off or closed before its scheduled end." },
-    { "id": "gap", "term": "GAP coverage", "pattern": "gap\\s+(?:coverage|insurance|protection)", "definition": "Vehicle coverage that may pay some difference between the vehicle's value and the remaining loan balance after a covered loss." },
-    { "id": "negative_equity", "term": "Negative equity", "pattern": "negative\\s+equity|roll(?:ed)?\\s+over", "definition": "Debt on a trade-in or prior loan that exceeds the asset's value and may be added to the new loan." },
-    { "id": "no_cost_emi", "term": "No-cost EMI", "pattern": "no[- ]cost\\s+emi", "definition": "A marketing label for installments with no stated interest; fees, taxes, or a higher purchase price can still create a cost." }
-    ,{ "id": "processing_fee", "term": "Processing fee", "pattern": "processing\\s+fee|administrative\\s+fee", "definition": "A charge for handling or setting up a transaction; check whether tax is added and whether it is financed." },
-    { "id": "tax_interest_component", "term": "Tax on interest", "pattern": "(?:gst|vat|sales\\s+tax|tax)\\s*@?\\s*\\d+(?:\\.\\d+)?%[^.]{0,80}(?:interest|emi)|(?:gst|vat|sales\\s+tax|tax)[^.]{0,60}(?:interest\\s+component)", "definition": "A tax assessed on interest adds to the cost of borrowing, even when the stated installment is unchanged." },
-    { "id": "discount_offset", "term": "Discount or offset", "pattern": "instant\\s+discount|cashback|rebate|discount[^.]{0,60}offset|offset[^.]{0,60}discount", "definition": "A discount, rebate, or cashback reduces the amount paid; its effect depends on whether it actually offsets financing costs." },
-    { "id": "service_contract", "term": "Service contract", "pattern": "service\\s+contract|extended\\s+warranty", "definition": "An optional repair or protection product that may be financed with the loan and add interest." },
-    { "id": "dealer_compensation", "term": "Dealer compensation", "pattern": "dealer\\s+(?:may\\s+)?receive\\s+compensation|dealer\\s+markup|kickbacks?|commissions?", "definition": "Compensation paid to a dealer or intermediary can create an incentive to offer a particular financing product or rate." },
-    { "id": "unquantified_amount", "term": "Unquantified amount", "pattern": "negative\\s+equity|fees?\\s+may\\s+apply|other\\s+charges?\\s+may\\s+apply", "definition": "The document refers to a charge or debt without stating its amount, so the disclosed total may be incomplete." }
+    {"id": "deferred_interest", "term": "Deferred interest", "pattern": "deferred\\s+interest|retroactive\\w*", "definition": "Interest may be charged later for an earlier promotional period if the required balance is not paid by its deadline."},
+    {"id": "amount_financed", "term": "Amount financed", "pattern": "amount\\s+financed", "definition": "The amount of credit being advanced, which can include optional products and other rolled-in charges."},
+    {"id": "gst_interest", "term": "GST on interest", "pattern": "(?:gst|tax)\\s+(?:on|of)\\s+interest", "definition": "Tax added to interest charges; it increases the total paid beyond the stated interest."},
+    {"id": "foreclosure", "term": "Foreclosure charge", "pattern": "foreclosure", "definition": "A charge that may apply when a loan is paid off or closed before its scheduled end."},
+    {"id": "gap", "term": "GAP coverage", "pattern": "gap\\s+(?:coverage|insurance|protection)", "definition": "Vehicle coverage that may pay some difference between the vehicle's value and the remaining loan balance after a covered loss."},
+    {"id": "negative_equity", "term": "Negative equity", "pattern": "negative\\s+equity|roll(?:ed)?\\s+over", "definition": "Debt on a trade-in or prior loan that exceeds the asset's value and may be added to the new loan."},
+    {"id": "no_cost_emi", "term": "No-cost EMI", "pattern": "no[- ]cost\\s+emi", "definition": "A marketing label for installments with no stated interest; fees, taxes, or a higher purchase price can still create a cost."},
+    {"id": "processing_fee", "term": "Processing fee", "pattern": "processing\\s+fee|administrative\\s+fee", "definition": "A charge for handling or setting up a transaction; check whether tax is added and whether it is financed."},
+    {"id": "tax_interest_component", "term": "Tax on interest", "pattern": "(?:gst|vat|sales\\s+tax|tax)\\s*@?\\s*\\d+(?:\\.\\d+)?%[^.]{0,80}(?:interest|emi)|(?:gst|vat|sales\\s+tax|tax)[^.]{0,60}(?:interest\\s+component)", "definition": "A tax assessed on interest adds to the cost of borrowing, even when the stated installment is unchanged."},
+    {"id": "discount_offset", "term": "Discount or offset", "pattern": "instant\\s+discount|cashback|rebate|discount[^.]{0,60}offset|offset[^.]{0,60}discount", "definition": "A discount, rebate, or cashback reduces the amount paid; its effect depends on whether it actually offsets financing costs."},
+    {"id": "service_contract", "term": "Service contract", "pattern": "service\\s+contract|extended\\s+warranty", "definition": "An optional repair or protection product that may be financed with the loan and add interest."},
+    {"id": "dealer_compensation", "term": "Dealer compensation", "pattern": "dealer\\s+(?:may\\s+)?receive\\s+compensation|dealer\\s+markup|kickbacks?|commissions?", "definition": "Compensation paid to a dealer or intermediary can create an incentive to offer a particular financing product or rate."},
+    {"id": "unquantified_amount", "term": "Unquantified amount", "pattern": "negative\\s+equity|fees?\\s+may\\s+apply|other\\s+charges?\\s+may\\s+apply", "definition": "The document refers to a charge or debt without stating its amount, so the disclosed total may be incomplete."}
   ],
   "benchmarks": [],
-  "alternatives": []
+  "alternatives": [],
+  "riskScoring": {
+    "weights": {"critical": 0.85, "high": 0.55, "medium": 0.25, "low": 0.08},
+    "bands": {"low": 0, "caution": 15, "high": 40, "critical": 70},
+    "repeatedFindingFactor": 0.6
+  },
+  "rateBasisFinding": {"id": "rate_basis_unspecified", "label": "Rate basis not stated", "category": "pricing", "severity": 1, "explanation": "The agreement does not say whether the rate uses a flat or reducing-balance calculation; the standard estimate assumes reducing balance."},
+  "findingsUI": {"protectionExplanation": "These clauses provide the stated protections, subject to their documented conditions."},
+  "textNormalization": {
+    "currencyJoins": [
+      {"pattern": "\\bU\\s*S\\s*\\$", "replacement": "US$"},
+      {"pattern": "\\b([CAS])\\s+\\$", "replacement": "$1$"},
+      {"pattern": "\\bR\\s*s\\s*\\.?", "replacement": "Rs."}
+    ],
+    "numericContext": {"unitPattern": "%|\\b(?:apr|hours?|days?|weeks?|fortnights?|months?|mos?|years?|yrs?|thousand|million|lakh|crore)\\b", "labelPattern": "principal|amount|balance|fee|charge|payment|rate|apr|term|tenure|period|duration|price", "currencyPattern": "US\\$|C\\$|A\\$|S\\$|[$₹€£¥]|\\b(?:USD|INR|EUR|GBP|CAD|AUD|SGD|AED|Rs)\\b\\.?"},
+    "aliases": [
+      {"canonical": "origination", "aliases": ["origination"]},
+      {"canonical": "principal", "aliases": ["principal"]},
+      {"canonical": "interest", "aliases": ["interest"]},
+      {"canonical": "processing", "aliases": ["processing"]},
+      {"canonical": "installment", "aliases": ["installment"]},
+      {"canonical": "repayment", "aliases": ["repayment"]},
+      {"canonical": "duration", "aliases": ["duration"]},
+      {"canonical": "maturity", "aliases": ["maturity"]},
+      {"canonical": "cancellation", "aliases": ["cancellation"]},
+      {"canonical": "arbitration", "aliases": ["arbitration"]},
+      {"canonical": "prepayment", "aliases": ["prepayment"]}
+    ]
+  },
+  "legalStructure": {
+    "referenceTerms": ["loan", "principal", "advance", "facility amount", "amount financed", "credit amount", "credit"],
+    "principalTermPattern": "loan|principal|advance|facility amount|amount financed|credit amount|credit",
+    "amountReferencePattern": "\\b(?:of|on)\\s+(?:the\\s+)?(?<reference>[^,.;()]+)"
+  },
+  "periodRoles": {
+    "unitMonths": {"hour": 0.0013698630136986301, "day": 0.03287671232876712, "week": 0.23076923076923078, "fortnight": 0.46153846153846156, "month": 1, "mo": 1, "year": 12, "yr": 12},
+    "units": "hours?|days?|weeks?|fortnights?|months?|mos?|years?|yrs?",
+    "numberWords": {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10, "eleven": 11, "twelve": 12, "thirty": 30, "sixty": 60, "ninety": 90},
+    "contextCharacters": 90,
+    "roles": [
+      {"role": "cure", "pattern": "\\bcure\\b|remedy\\s+(?:a\\s+)?(?:breach|default)", "priority": 70},
+      {"role": "cancellation", "pattern": "cancel(?:lation)?|cooling[- ]off|withdraw|rescind|opt[- ]out", "priority": 60},
+      {"role": "notice", "pattern": "\\bnotice\\b|notify|notification", "priority": 50},
+      {"role": "grace", "pattern": "\\bgrace\\b|late[- ]fee[- ]free", "priority": 40},
+      {"role": "trial_promo", "pattern": "\\btrial\\b|promo(?:tional)?|introductory|teaser|offer\\s+expires?|expires?\\s+in|offer\\s+ends?", "priority": 30},
+      {"role": "term", "pattern": "\\bterm\\b|tenure|tenor|maturity|repayment\\s+(?:period|duration)|loan\\s+(?:period|duration)|\\brepay(?:able|ment)?\\b|\\bpayable\\b|\\binstallments?\\b|\\b(?:payments?|pay|loan)\\b|\\bprincipal\\b|\\bcredit\\s+amount\\b", "priority": 10}
+    ],
+    "explicitTermPattern": "\\b(?:loan\\s+term|repayment\\s+(?:term|period|duration)|term|tenure|tenor|maturity)\\b",
+    "derivedSchedule": {
+      "suppressRoles": ["trial_promo", "grace", "cancellation", "notice", "cure"]
+    }
+  },
+  "plausibility": {"feePattern": "\\b(?:fees?|charges?|commission|origination|processing|deposit)\\b", "paymentPattern": "\\b(?:emi|installments?|instalments?|(?:monthly\\s+)?payments?|repayments?)\\b", "principalPercentBasisPattern": "(?:of|on)\\s+(?:the\\s+)?(?:original\\s+)?(?:loan|principal|amount\\s+financed)", "confidenceCap": 0.35},
+  "analysisConfidenceThreshold": 0.7
 }

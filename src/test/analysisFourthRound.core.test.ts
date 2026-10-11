@@ -50,7 +50,7 @@ describe("Round 4 polarity and canonical findings", () => {
   it("excludes hypothetical charges and treats no arbitration as a protection", () => {
     expect(detectCostsGeneric("For example, a processing fee of $50 could apply.", null, null, null).findings).toEqual([]);
     const result = analyzeLocally(CLEAN_LOAN + "\nThere is no binding arbitration.");
-    expect(result.protections.some((finding) => finding.topicId === "arbitration")).toBe(true);
+    expect(result.protections.flatMap((finding) => finding.components ?? [finding]).some((finding) => finding.topicId === "arbitration")).toBe(true);
     expect(result.warnings).toEqual([]);
   });
 

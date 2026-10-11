@@ -4,7 +4,8 @@ import { RiskMeter } from "./RiskMeter";
 import { AICounterOfferEmail } from "./AICounterOfferEmail";
 import { formatCurrency } from "@/lib/financial";
 import { hasActionableFindings } from "@/lib/analyzeWithAI";
-import type { AnalysisContext, AnalysisFinding } from "@/lib/analysisContext";
+import type { AnalysisContext, AnalysisFinding, CostFinding } from "@/lib/analysisContext";
+import rules from "@/data/analysisRules.json";
 
 export type AnalysisResult = AnalysisContext;
 interface Props {
@@ -15,15 +16,19 @@ interface Props {
 
 export function AnalysisDashboard({ context, onPrincipalSelect }: Props) {
   const scored = context.riskBreakdown.filter((item) => item.points > 0);
+  const combinedScore = scored[scored.length - 1]?.combinedScore ?? context.riskScore;
   const hasIssues = context.findings.some((finding) => finding.category !== "protection");
   const reason = hasIssues ? "Review the detected findings and their evidence below."
     : context.protections.length ? "Documented protections with no detected material flags." : "No configured material flags detected.";
   return <div className="space-y-4">
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
       <TerminalCard title="VERDICT" icon={Shield} className="h-full">
-        <div className="flex justify-center py-2"><RiskMeter score={context.riskScore} band={context.riskBand} /></div>
+        <div className="flex justify-center py-2"><RiskMeter score={context.riskScore} band={context.riskBand} incomplete={context.analysisIncomplete} /></div>
         {scored.length > 0 && <details className="mt-3 border-t border-border pt-2 font-mono text-xs text-muted-foreground">
-          <summary className="cursor-pointer">Score breakdown</summary><ul className="mt-2 space-y-1">{scored.map((item) => <li key={item.category}>{item.category.replace(/_/g, " ")}: {item.points} points</li>)}</ul>
+          <summary className="cursor-pointer">Score breakdown</summary>
+          <ul className="mt-2 space-y-1">{scored.map((item, index) => <li key={`${item.findingId ?? item.category}:${index}`}>{item.reasons[0] || item.category.replace(/_/g, " ")}: {Math.round((item.weight ?? item.points / 100) * 100)}% weight{item.reasons.filter((reason) => reason.startsWith("Minimum risk band:")).map((reason) => <span key={reason} className="block text-[10px]">{reason}</span>)}</li>)}</ul>
+          <p className="mt-2">Combined result: 100 × (1 − product of (1 − weight)) = {combinedScore.toFixed(1)}/100.</p>
+          <p className="mt-1">Final score: {Number(context.riskScore.toFixed(1))}/100{combinedScore < context.riskScore ? " (catalog minimum applied)" : ""}.</p>
         </details>}
       </TerminalCard>
       <TerminalCard title="PLAIN ENGLISH SUMMARY" icon={FileWarning} className="h-full">
@@ -64,6 +69,7 @@ export function AnalysisNumbers({ context }: Props) {
     { label: "Optional products (separate)", amount: context.costBreakdown.optionalProducts },
   ].filter((row) => row.amount > 0);
   return <TerminalCard title="NUMBERS" icon={DollarSign}><div className="space-y-4 font-mono">
+    {!!context.plausibilityConflicts?.length && <div role="alert" className="border border-destructive/40 p-3 text-xs"><h3 className="font-semibold text-foreground">Principal needs review</h3><p className="mt-1 text-muted-foreground">Principal confidence: {Math.round(context.principalField.confidence * 100)}%. Confirm these conflicting amounts before relying on calculations.</p><ul className="mt-2 space-y-2">{context.plausibilityConflicts.map((conflict, index) => <li key={`${conflict.kind}:${conflict.conflictingValue}:${index}`}><p>Principal: {money(conflict.principal)} · {conflict.label}: {money(conflict.conflictingValue)}</p><blockquote className="mt-1 border-l-2 border-border pl-3 text-muted-foreground">{conflict.source}</blockquote></li>)}</ul></div>}
     {metrics.length > 0 && <dl className="grid grid-cols-2 sm:grid-cols-3 gap-4">{metrics.map((metric) => <div key={metric.label}><dt className="text-[10px] text-muted-foreground uppercase">{metric.label}</dt><dd className="mt-1 text-lg font-bold text-foreground">{metric.value}</dd></div>)}</dl>}
     {context.installmentSchedule && <div className="border-t border-border pt-3 text-sm">{context.installmentSchedule.count} × {money(context.installmentSchedule.amount)} every {context.installmentSchedule.interval} {context.installmentSchedule.intervalUnit}{context.installmentSchedule.interval === 1 ? "" : "s"}<p className="mt-1 text-xs text-muted-foreground">Scheduled total: {money(context.installmentSchedule.total)}</p></div>}
     {costRows.length > 0 && <div className="border-t border-border pt-3"><h3 className="mb-2 text-xs font-bold">Cost breakdown · computed</h3><dl className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">{costRows.map((row) => <div key={row.label}><dt className="text-muted-foreground">{row.label}</dt><dd className="mt-1">{row.offset ? "−" : ""}{money(row.amount)}</dd></div>)}</dl>{context.netDisbursed !== null && context.netDisbursed > 0 && <p className="mt-3 text-xs text-muted-foreground">Net proceeds: {money(context.netDisbursed)}</p>}</div>}
@@ -80,10 +86,28 @@ function distinctFindings(findings: AnalysisFinding[]): AnalysisFinding[] {
   return findings.filter((finding) => { const key = `${finding.id}:${finding.clauseSpan.join(":")}`; if (seen.has(key)) return false; seen.add(key); return true; }).sort((a, b) => b.severity - a.severity || a.position - b.position);
 }
 
+function FindingAmounts({ finding, context }: { finding: AnalysisFinding; context: AnalysisContext }) {
+  const amounts = new Map<string, CostFinding>();
+  for (const component of finding.components ?? [finding]) {
+    if (component.amount === null && component.percent === null) continue;
+    const key = [component.topicId ?? component.id, component.amount, component.percent, component.basis, component.frequency].join(":");
+    if (!amounts.has(key)) amounts.set(key, component);
+  }
+  if (!amounts.size) return null;
+  return <div className="mt-1 space-y-1 text-foreground">{[...amounts.entries()].map(([key, component]) => <p key={key}>
+    {finding.components && <span>{component.label}: </span>}
+    {component.amount !== null ? formatCurrency(component.amount, context.currencyCode) : `${component.percent}%`}
+    {component.amount !== null && component.percent !== null && <span> ({component.percent}%)</span>}
+    {component.amount === null && component.percent !== null && component.totalImpact !== null && <span> = {formatCurrency(component.totalImpact, context.currencyCode)} (computed)</span>}
+    {component.frequency ? ` · ${component.frequency}` : ""}
+  </p>)}</div>;
+}
+
 function FindingList({ findings, context, positive = false }: { findings: AnalysisFinding[]; context: AnalysisContext; positive?: boolean }) {
+  if (positive) return <ul className="space-y-2">{distinctFindings(findings).map((finding) => <li key={`${finding.id}:${finding.position}`} className="font-mono text-xs"><details><summary className="cursor-pointer font-semibold text-foreground">{finding.label}{finding.conditions.length > 0 && <span className="ml-2 font-normal text-muted-foreground">· {finding.conditions.join("; ")}</span>}</summary>{finding.evidence && <blockquote className="mt-1 border-l-2 border-border pl-3 text-muted-foreground">{finding.evidence}</blockquote>}</details></li>)}</ul>;
   return <ul className="space-y-4">{distinctFindings(findings).map((finding) => <li key={`${finding.id}:${finding.position}`} className="font-mono text-xs">
-    <div className="flex items-start justify-between gap-3"><span className="font-semibold text-foreground">{finding.label}</span>{!positive && <span className="shrink-0 text-[10px] text-muted-foreground">{finding.severity >= 4 ? "HIGH" : finding.severity >= 2 ? "MEDIUM" : "LOW"}</span>}</div>
-    {!positive && (finding.amount !== null || finding.percent !== null) && <p className="mt-1 text-foreground">{finding.amount !== null ? formatCurrency(finding.amount, context.currencyCode) : `${finding.percent}%`}{finding.frequency ? ` · ${finding.frequency}` : ""}</p>}
+    <div className="flex items-start justify-between gap-3"><span className="font-semibold text-foreground">{finding.label}</span>{!positive && <span className="shrink-0 text-[10px] text-muted-foreground">{finding.severity >= 5 ? "CRITICAL" : finding.severity >= 4 ? "HIGH" : finding.severity >= 2 ? "MEDIUM" : "LOW"}</span>}</div>
+    <FindingAmounts finding={finding} context={context} />
     {finding.explanation && <p className="mt-1 text-muted-foreground">{finding.explanation}</p>}
     {finding.evidence && <blockquote className="mt-2 border-l-2 border-border pl-3 text-muted-foreground">{finding.evidence}</blockquote>}
     {finding.conditions.length > 0 && <p className="mt-1 text-muted-foreground">Applies: {finding.conditions.join("; ")}</p>}
@@ -95,7 +119,7 @@ export function AnalysisFindings({ context }: Props) {
   const issues = context.findings.filter((finding) => finding.category !== "protection");
   return <TerminalCard title="FINDINGS" icon={FileWarning} tag={issues.length ? `${issues.length} TO REVIEW` : undefined}>
     {issues.length > 0 && <FindingList findings={issues} context={context} />}
-    {context.protections.length > 0 && <div className={issues.length ? "mt-5 border-t border-border pt-4" : ""}><h3 className="mb-3 font-mono text-sm font-semibold text-primary">Positive terms</h3><FindingList findings={context.protections} context={context} positive /></div>}
+    {context.protections.length > 0 && <div className={issues.length ? "mt-5 border-t border-border pt-4" : ""}><h3 className="mb-2 font-mono text-sm font-semibold text-primary">Positive terms</h3><p className="mb-3 font-mono text-xs text-muted-foreground">{(rules as unknown as { findingsUI: { protectionExplanation: string } }).findingsUI.protectionExplanation}</p><FindingList findings={context.protections} context={context} positive /></div>}
   </TerminalCard>;
 }
 

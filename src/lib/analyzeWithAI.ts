@@ -12,7 +12,11 @@ export interface AIEnhancement {
 
 type Provenance = "stated-in-document" | "computed" | "derived" | "assumed";
 interface AIFact { name: string; value: string | number; provenance: Provenance; evidence?: string }
-type AIFinding = Pick<AnalysisFinding, "id" | "label" | "category" | "severity" | "polarity" | "clauseSpan" | "evidence" | "conditions" | "provenance" | "amount" | "percent"> & { computedTotalImpact?: { value: number; provenance: "computed" } };
+type AIFinding = Pick<AnalysisFinding, "id" | "label" | "category" | "severity" | "polarity" | "clauseSpan" | "evidence" | "conditions" | "provenance" | "amount" | "percent"> & {
+  mergedRuleIds?: string[];
+  components?: Array<{ id: string; label: string; amount: number | null; percent: number | null; basis: string | null; frequency: string | null; computedTotalImpact?: { value: number; provenance: "computed" } }>;
+  computedTotalImpact?: { value: number; provenance: "computed" };
+};
 export interface AIContext {
   documentType: string;
   currency: string;
@@ -154,8 +158,14 @@ export function buildAIContext(context: AnalysisContext): AIContext {
       facts.push({ name: `installment schedule ${name}`, value, provenance: "stated-in-document", evidence: source });
     }
   }
-  const projectFinding = ({ id, label, category, severity, polarity, clauseSpan, evidence, conditions, provenance, amount, percent, totalImpact }: AnalysisFinding): AIFinding => ({
+  const projectFinding = ({ id, label, category, severity, polarity, clauseSpan, evidence, conditions, provenance, amount, percent, totalImpact, mergedRuleIds, components }: AnalysisFinding): AIFinding => ({
     id, label, category, severity, polarity, clauseSpan, evidence, conditions, provenance, amount, percent,
+    ...(mergedRuleIds?.length ? { mergedRuleIds } : {}),
+    ...(components?.length ? { components: components.map((component) => ({
+      id: component.id, label: component.label, amount: component.amount, percent: component.percent,
+      basis: component.basis, frequency: component.frequency,
+      ...(component.totalImpact === null ? {} : { computedTotalImpact: { value: component.totalImpact, provenance: "computed" as const } }),
+    })) } : {}),
     ...(totalImpact === null ? {} : { computedTotalImpact: { value: totalImpact, provenance: "computed" } }),
   });
   const findings = context.findings.filter((finding) => finding.category !== "protection" && finding.category !== "protections" && !["negated", "waived/zero", "hypothetical"].includes(finding.polarity)).map(projectFinding);
@@ -204,11 +214,16 @@ export function validateAIEnhancement(context: AnalysisContext, payload: unknown
   for (const finding of allFindings) for (const number of [finding.amount, finding.percent, finding.computedTotalImpact?.value ?? null]) {
     if (number !== null && Number.isFinite(number)) knownNumbers.add(String(Number(number.toFixed(2))));
   }
-  const mismatch = grounded.findings.filter((finding) => /mismatch|contradiction/.test(`${finding.id} ${finding.category}`));
+  for (const finding of allFindings) for (const component of finding.components ?? []) {
+    for (const number of [component.amount, component.percent, component.computedTotalImpact?.value ?? null]) {
+      if (number !== null && Number.isFinite(number)) knownNumbers.add(String(Number(number.toFixed(2))));
+    }
+  }
+  const mismatch = grounded.findings.filter((finding) => /mismatch|contradiction/.test(`${finding.id} ${finding.category} ${(finding.mergedRuleIds ?? []).join(" ")}`));
   const protectedTopics = grounded.protections.map((finding) => `${finding.id} ${finding.label}`);
   const resolvedTopics = grounded.facts.filter((fact) => fact.provenance !== "assumed" && !grounded.unresolvedFields.includes(fact.name)).map((fact) => fact.name);
-  const actionTopics = [...grounded.unresolvedFields, ...grounded.findings.filter((finding) => finding.severity >= 2).map((finding) => `${finding.id} ${finding.label}`)];
-  const knownTopics = [...grounded.facts.map((fact) => fact.name), ...allFindings.map((finding) => `${finding.id} ${finding.label}`)];
+  const actionTopics = [...grounded.unresolvedFields, ...grounded.findings.filter((finding) => finding.severity >= 2).flatMap((finding) => [`${finding.id} ${finding.label}`, ...(finding.mergedRuleIds ?? [])])];
+  const knownTopics = [...grounded.facts.map((fact) => fact.name), ...allFindings.flatMap((finding) => [`${finding.id} ${finding.label}`, ...(finding.mergedRuleIds ?? [])])];
   const actionable = actionTopics.length > 0;
   const validSentence = (sentence: string, action: boolean): boolean => {
     if (numericTokens(sentence).some((number) => !knownNumbers.has(number))) return false;

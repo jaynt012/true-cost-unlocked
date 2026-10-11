@@ -32,13 +32,14 @@ describe("Round 4 negation scope controls", () => {
     const result = analyzeLocally("No processing fee or annual fee applies.");
     expect(result.fees).toHaveLength(0);
     expect(result.protections.some((finding) => finding.topicId === "processing")).toBe(true);
-    expect(result.protections.some((finding) => finding.topicId === "annual")).toBe(true);
+    expect(result.protections.flatMap((finding) => finding.components ?? [finding]).some((finding) => finding.topicId === "annual")).toBe(true);
   });
 
   it("treats repeated coordinated negators as separate exclusions", () => {
     const result = analyzeLocally("No processing fee and no annual fee.");
     expect(result.fees).toHaveLength(0);
-    expect(result.protections.map((finding) => finding.topicId)).toEqual(expect.arrayContaining(["processing", "annual"]));
+    expect(result.protections).toHaveLength(1);
+    expect(result.protections.flatMap((finding) => finding.components ?? [finding]).map((finding) => finding.topicId)).toEqual(expect.arrayContaining(["processing", "annual"]));
   });
 
   it("does not claim a cancellation right when cancellation is prohibited", () => {

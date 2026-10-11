@@ -1,7 +1,10 @@
-import { analyzeLoan, calculateEffectiveAPR, calculateEMI, calculateFlatLoan, detectCurrency, formatCurrency, minimumPaymentPayoff, normalizeDuration, type SupportedCurrency } from "./financial";
-import { calculateRisk, canonicalFinding, classifyDocument, classifyPolarity, collectRuleFindings, computeTaxImpacts, detectClaims, detectClaimsGeneric, detectCosts, detectCostsGeneric, extractAmountCandidates, extractRateCandidates, extractRateType, extractStatedEMI, parseMonetaryValues, resolveDerivedAmountCandidates, scorePrincipalCandidates, segmentClauses, type ParsedRateCandidate } from "./analysisEngine";
+import { analyzeLoan, calculateEffectiveAPR, calculateEMI, calculateFlatLoan, detectCurrency, formatCurrency, minimumPaymentPayoff, type SupportedCurrency } from "./financial";
+import { calculateRisk, canonicalFinding, classifyDocument, classifyPolarity, collectRuleFindings, computeTaxImpacts, detectClaims, detectClaimsGeneric, detectCosts, detectCostsGeneric, extractAmountCandidates, extractRateCandidates, extractRateType, extractStatedEMI, mergeClauseFindings, parseMonetaryValues, resolveDerivedAmountCandidates, scorePrincipalCandidates, segmentClauses, type ParsedRateCandidate } from "./analysisEngine";
 import { freezeAnalysisContext, type AdviceResult, type AddOnImpact, type AlternativeFunding, type AnalysisContext, type AnalysisFinding, type AmountRelationship, type CashPriceAnalysis, type CostBreakdown, type CostFinding, type DeceptionResult, type ExtractedField, type FairMarketBenchmark, type GlossaryItem, type InstallmentSchedule, type ReconciliationCheck } from "./analysisContext";
 import rules from "@/data/analysisRules.json";
+import { normalizeDocument } from "./documentNormalization";
+import { inspectLegalStructure, resolveLegalReference } from "./documentStructure";
+import { classifyPeriodRoles, selectLoanTerm, type PeriodCandidate } from "./periodRoles";
 
 const CURRENCY_AMOUNT_SOURCE = String.raw`(?:\$|₹|€|£|¥|US\$|C\$|A\$|S\$|usd|inr|eur|gbp|jpy|cad|aud|sgd|aed|rs\.?)`;
 const PRICE_COMPARISON_PATTERN = new RegExp(
@@ -54,15 +57,143 @@ export interface ExtractedValues {
   installmentCount: number | null;
   docType: AnalysisContext["docType"];
   extracted: boolean;
+  periodCandidates: PeriodCandidate[];
+  plausibilityConflicts: PrincipalPlausibilityConflict[];
 }
 
-export function extractValuesFromText(text: string): ExtractedValues {
+export interface PrincipalPlausibilityConflict {
+  field: "principal";
+  principal: number;
+  conflictingValue: number;
+  label: string;
+  source: string;
+  kind: "fee" | "payment" | "fee_percent";
+}
+
+/** Preserve original document offsets after OCR repair, including nested field alternatives. */
+function restoreOriginalEvidence<T>(value: T, document: ReturnType<typeof normalizeDocument>): T {
+  const replacements = new Map<string, string>();
+  const originalSource = (source: string, anchor?: number, span?: [number, number]) => {
+    if (!source) return source;
+    const insideSpan = span ? document.text.indexOf(source, span[0]) : -1;
+    const near = anchor === undefined ? -1 : document.text.lastIndexOf(source, anchor);
+    const start = insideSpan >= 0 && insideSpan < span![1] ? insideSpan : near >= 0 ? near : document.text.indexOf(source);
+    if (start < 0) return source;
+    const original = document.originalEvidence(start, start + source.length);
+    if (source !== original) replacements.set(source, original);
+    return original;
+  };
+  const visit = (entry: unknown): unknown => {
+    if (Array.isArray(entry)) return entry.map(visit);
+    if (!entry || typeof entry !== "object") return entry;
+    const object = entry as Record<string, unknown>;
+    const mapped: Record<string, unknown> = {};
+    const span = (Array.isArray(object.clauseSpan) ? object.clauseSpan : Array.isArray(object.span) ? object.span : undefined) as [number, number] | undefined;
+    const selectedCandidate = Array.isArray(object.alternatives) ? (object.alternatives as Array<Record<string, unknown>>).find((candidate) => candidate.value === object.value && candidate.source === object.source) : undefined;
+    const anchor = typeof object.position === "number" ? object.position : typeof object.start === "number" ? object.start
+      : span?.[0] ?? (typeof selectedCandidate?.position === "number" ? selectedCandidate.position : undefined);
+    for (const [key, item] of Object.entries(object)) {
+      if ((key === "source" || key === "evidence") && typeof item === "string") mapped[key] = originalSource(item, anchor, span);
+      else if (["span", "clauseSpan", "amountSpan"].includes(key) && Array.isArray(item) && item.length === 2) mapped[key] = document.originalSpan(item[0], item[1]);
+      else if (["position", "start", "bodyStart"].includes(key) && typeof item === "number") mapped[key] = document.originalSpan(item, item)[0];
+      else if (key === "end" && typeof item === "number") mapped[key] = document.originalSpan(Math.max(0, item - 1), item)[1];
+      else mapped[key] = visit(item);
+    }
+    return mapped;
+  };
+  const result = visit(value);
+  const substitutions = [...replacements].sort((a, b) => b[0].length - a[0].length);
+  const restoreEmbedded = (entry: unknown): unknown => {
+    if (typeof entry === "string") {
+      let restored = entry;
+      for (const [normalized, original] of substitutions) restored = restored.split(normalized).join(original);
+      return restored;
+    }
+    if (Array.isArray(entry)) return entry.map(restoreEmbedded);
+    if (!entry || typeof entry !== "object") return entry;
+    return Object.fromEntries(Object.entries(entry).map(([key, item]) => [key, key === "rawText" ? document.originalText : ["source", "evidence"].includes(key) ? item : restoreEmbedded(item)]));
+  };
+  return restoreEmbedded(result) as T;
+}
+
+export function checkPrincipalPlausibility(text: string, principal: number | null, candidates = extractAmountCandidates(text)): PrincipalPlausibilityConflict[] {
+  if (principal === null || principal <= 0) return [];
+  const policy = (rules as unknown as { plausibility: { feePattern: string; paymentPattern: string; principalPercentBasisPattern: string } }).plausibility;
+  if (!policy) return [];
+  const conflicts: PrincipalPlausibilityConflict[] = [];
+  const add = (kind: PrincipalPlausibilityConflict["kind"], value: number, label: string, source: string) => {
+    if (value <= principal || conflicts.some((conflict) => conflict.kind === kind && conflict.conflictingValue === value && conflict.source === source)) return;
+    conflicts.push({ field: "principal", principal, conflictingValue: value, label, source, kind });
+  };
+  for (const finding of resolveDefinedPercentageBases(text, detectCostsGeneric(text, principal, null, null).findings)) {
+    if (finding.negated || finding.category === "protection" || finding.polarity === "hypothetical") continue;
+    if (new RegExp(policy.feePattern, "i").test(finding.source)) {
+      if (finding.amount !== null) add("fee", finding.amount, finding.label, finding.source);
+      if (finding.percent !== null && finding.totalImpact !== null) {
+        add("fee_percent", finding.totalImpact, finding.label + " (" + finding.percent + "% of " + (finding.basis ?? "the stated basis") + ")", finding.source);
+      }
+    }
+  }
+  for (const candidate of candidates) {
+    if (["negated", "waived/zero", "hypothetical"].includes(classifyPolarity(candidate.source))) continue;
+    const paymentLabel = new RegExp(policy.paymentPattern, "i").test(candidate.label);
+    const feeLabel = new RegExp(policy.feePattern, "i").test(candidate.label);
+    if (feeLabel || (!paymentLabel && new RegExp(policy.feePattern, "i").test(candidate.source))) {
+      add("fee", candidate.value, candidate.label, candidate.source);
+    }
+    if (paymentLabel && !feeLabel) add("payment", candidate.value, candidate.label, candidate.source);
+  }
+  return conflicts;
+}
+
+/** Resolve percentage bases against declared terms while retaining any separately stated amount. */
+function resolveDefinedPercentageBases(text: string, findings: CostFinding[]): CostFinding[] {
+  const referencePattern = (rules as unknown as { legalStructure?: { amountReferencePattern?: string } }).legalStructure?.amountReferencePattern;
+  if (!referencePattern) return findings;
+  const structure = inspectLegalStructure(text);
+  return findings.map((finding) => {
+    if (finding.negated || finding.percent === null || finding.basis === "outstanding") return finding;
+    for (const reference of finding.source.matchAll(new RegExp(referencePattern, "gi"))) {
+      const label = reference.groups?.reference;
+      if (!label) continue;
+      const definition = resolveLegalReference(label, structure);
+      if (definition?.amount === null || !definition) continue;
+      const escaped = definition.term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      if (!new RegExp(`^\\s*["“'‘]?${escaped}\\b`, "i").test(label)) continue;
+      const amount = definition.amount * finding.percent / 100;
+      const taxedAmount = amount * (1 + (finding.taxPercent ?? 0) / 100);
+      return { ...finding, basis: definition.term, totalImpact: finding.category === "offset" ? -Math.abs(taxedAmount) : taxedAmount,
+        amountNotStated: false, provenance: "computed" };
+    }
+    return finding;
+  });
+}
+
+function applyPlausibility(field: ExtractedField<number>, conflicts: PrincipalPlausibilityConflict[]): ExtractedField<number> {
+  const cap = (rules as unknown as { plausibility?: { confidenceCap?: number } }).plausibility?.confidenceCap ?? 0.35;
+  return conflicts.length ? { ...field, value: null, source: null, confidence: Math.min(field.confidence, cap), needsReview: true } : field;
+}
+
+export function extractValuesFromText(originalText: string): ExtractedValues {
+  const document = normalizeDocument(originalText);
+  return restoreOriginalEvidence(extractValuesNormalized(document.text), document);
+}
+
+function extractValuesNormalized(text: string): ExtractedValues {
   const amountCandidates = extractAmountCandidates(text);
+  const structure = inspectLegalStructure(text);
+  const principalPattern = (rules as unknown as { legalStructure?: { principalTermPattern?: string } }).legalStructure?.principalTermPattern;
+  for (const definition of structure.definitions) {
+    if (definition.amount === null || !principalPattern || !new RegExp(principalPattern, "i").test(definition.term)) continue;
+    const candidate = amountCandidates.find((item) => item.value === definition.amount && item.position >= definition.span[0] && item.position <= definition.span[1]);
+    if (candidate) Object.assign(candidate, { label: definition.term, score: Math.max(candidate.score, 140), confidence: 0.98 });
+  }
   const resolvedAmounts = resolveDerivedAmountCandidates(text, amountCandidates);
   const rateCandidates = extractRateCandidates(text);
   const docType = classifyDocument(text);
   const statedEMI = extractStatedEMI(text, amountCandidates);
-  const parsedTerm = normalizeDuration(text);
+  const periodCandidates = classifyPeriodRoles(text);
+  const parsedTerm = selectLoanTerm(text, periodCandidates);
   let termField: ExtractedField<number> = parsedTerm
     ? { value: parsedTerm.months, source: parsedTerm.source, confidence: parsedTerm.confidence === "high" ? 0.95 : 0.65, alternatives: [], needsReview: false }
     : { value: null, source: null, confidence: 0, alternatives: [], needsReview: false };
@@ -118,8 +249,11 @@ export function extractValuesFromText(text: string): ExtractedValues {
     rateField = { ...rateField, confidence: Math.max(rateField.confidence, 0.99) };
     termField = { ...termField, confidence: Math.max(termField.confidence, 0.99) };
   }
+  const plausiblePrincipal = principalField.value ?? (principalField.needsReview ? principalField.alternatives[0]?.value ?? null : null);
+  const plausibilityConflicts = checkPrincipalPlausibility(text, plausiblePrincipal, amountCandidates);
+  principalField = applyPlausibility(principalField, plausibilityConflicts);
   const loanAmount = principalField.value;
-  const installmentCountMatch = text.match(/\b(?:pay\s+in\s+)?(\d+)\s+(?:(?:interest[- ]free|equal|fixed)\s+)?installments?\b/i);
+  const installmentCountMatch = text.match(/\b(?:pay\s+in\s+)?(\d+)\s+(?:(?:interest[- ]free|equal|fixed|monthly|weekly|biweekly|fortnightly|scheduled)\s+){0,2}installments?\b/i);
   const installmentCount = installmentCountMatch ? Number(installmentCountMatch[1]) : null;
 
   return {
@@ -138,6 +272,8 @@ export function extractValuesFromText(text: string): ExtractedValues {
     installmentCount,
     docType,
     extracted: loanAmount !== null || interestRate !== null || termField.value !== null,
+    periodCandidates,
+    plausibilityConflicts,
   };
 }
 
@@ -206,7 +342,7 @@ export function generateAdvice(riskScore: number, confidence: number, contradict
     : "Resolved inputs remain below the configured extraction-confidence threshold.");
   if (!reasons.length) reasons.push("No configured risk patterns were found in the extracted text.");
   return {
-    recommendation: confidence < confidenceThreshold ? "insufficient_confidence" : riskScore >= 30 || contradictedClaims ? "review_required" : "no_material_flags",
+    recommendation: confidence < confidenceThreshold ? "insufficient_confidence" : riskScore >= rules.riskScoring.bands.caution || contradictedClaims ? "review_required" : "no_material_flags",
     reasons: Array.from(new Set(reasons)),
   };
 }
@@ -214,10 +350,10 @@ export function generateAdvice(riskScore: number, confidence: number, contradict
 export function generateLocalGlossary(input: string | CostFinding[]): GlossaryItem[] {
   const findings = typeof input === "string" ? detectCostsGeneric(input, null, null, null).findings : input;
   const active = findings.filter((finding) => finding.category !== "protection" && !finding.negated && finding.polarity !== "hypothetical");
-  const glossary = rules.glossary.filter((item) => active.some((finding) => new RegExp(item.pattern, "i").test(finding.evidence ?? finding.source))).map(({ term, definition }) => ({ term, definition }));
+  const glossary: GlossaryItem[] = [];
   for (const category of new Set(active.map((finding) => finding.category))) {
     const item = rules.categoryGlossary.find((entry) => entry.category === category);
-    if (item && !glossary.some((entry) => entry.term === item.term)) glossary.push({ term: item.term, definition: item.definition });
+    if (item) glossary.push({ term: item.term, definition: item.definition });
   }
   if (findings.some((finding) => finding.category === "protection")) glossary.push({ term: "Consumer protections", definition: "Documented exclusions, waivers, fixed rates, and cancellation windows limit the specified charges or obligations under their stated conditions." });
   return glossary;
@@ -255,8 +391,8 @@ function extractInstallmentSchedule(text: string): InstallmentSchedule | null {
     if (normalized === "year") return { unit: "year", months: 12, periodsPerYear: 1 };
     return null;
   };
-  const termMonths = normalizeDuration(text)?.months ?? null;
-  const explicit = text.match(/\b(?:pay\s+in\s+)?(?<count>\d+)\s+(?:(?:interest[- ]free|equal|fixed)\s+)?(?:installments?|instalments?|payments?)\s+of\s+(?:US\$|C\$|A\$|S\$|\$|₹|€|£|¥|INR\s*|USD\s*|EUR\s*|GBP\s*|Rs\.?\s*)?(?<amount>\d{1,3}(?:,\d{2,3})+|\d+)(?:\.(?<decimal>\d+))?[\s\S]{0,100}?\bevery\s+(?<interval>\d+)?\s*(?<unit>days?|weeks?|fortnights?|months?|years?)/i);
+  const termMonths = selectLoanTerm(text)?.months ?? null;
+  const explicit = text.match(/\b(?:pay\s+in\s+)?(?<count>\d+)\s+(?:(?:interest[- ]free|equal|fixed|monthly|weekly|biweekly|fortnightly|scheduled)\s+){0,2}(?:installments?|instalments?|payments?)\s+of\s+(?<currency>US\$|C\$|A\$|S\$|\$|₹|€|£|¥|INR\s*|USD\s*|EUR\s*|GBP\s*|Rs\.?\s*)(?<amount>\d{1,3}(?:,\d{2,3})+|\d+)(?:\.(?<decimal>\d+))?[\s\S]{0,100}?\bevery\s+(?<interval>\d+)?\s*(?<unit>days?|weeks?|fortnights?|months?|years?)/i);
   if (explicit?.groups) {
     const count = Number(explicit.groups.count);
     const amount = Number(explicit.groups.amount.replace(/,/g, "") + (explicit.groups.decimal ? "." + explicit.groups.decimal : ""));
@@ -271,7 +407,7 @@ function extractInstallmentSchedule(text: string): InstallmentSchedule | null {
     const amounts = parseMonetaryValues(clause.text, clause.start).filter((value) => value.amount !== null);
     if (amounts.length === 0) continue;
     const frequency = /\b(daily|weekly|fortnightly|biweekly|monthly|quarterly|annually|yearly)\b/i.exec(clause.text);
-    const explicitCount = /\b(?<count>\d+)\s+(?:equal\s+)?(?:installments?|instalments?|payments?)\s+of\b/i.exec(clause.text);
+    const explicitCount = /\b(?<count>\d+)\s+(?:(?:equal|monthly|weekly|biweekly|fortnightly|scheduled)\s+){0,2}(?:installments?|instalments?|payments?)\s+of\b/i.exec(clause.text);
     const intervalMatch = /\b(?:every|per|a|\/)\s*(?<interval>\d+)?\s*(?<unit>days?|weeks?|fortnights?|months?|years?)\b/i.exec(clause.text);
     const hasPaymentContext = /\b(?:payment|installment|instalment|emi|pay(?:ment)?)\b/i.test(clause.text);
     const frequencyUnit: Record<string, string> = {
@@ -487,6 +623,7 @@ function analyzeLocallyLegacy(
     warnings: Array.from(new Set(warnings)),
     riskScore: risk.score,
     riskBand: risk.band,
+    analysisIncomplete: confidence < rules.analysisConfidenceThreshold,
     riskBreakdown: risk.breakdown,
     summary,
     hiddenFees,
@@ -520,13 +657,15 @@ function analyzeLocallyLegacy(
 }
 
 export function analyzeLocally(
-  text: string,
+  originalText: string,
   amountOverride: number | null = null,
   rateOverride: number | null = null,
   durationOverride: number | null = null,
   currencyOverride: SupportedCurrency | null = null,
 ): AnalysisContext {
-  const extracted = extractValuesFromText(text);
+  const document = normalizeDocument(originalText);
+  const text = document.text;
+  const extracted = extractValuesNormalized(text);
   let principalField: AnalysisContext["principalField"] = amountOverride !== null && amountOverride > 0
     ? { value: amountOverride, source: "User override", confidence: 1, alternatives: extracted.principalField.alternatives, needsReview: false }
     : extracted.principalField;
@@ -568,7 +707,8 @@ export function analyzeLocally(
       rateField = { ...rateField, value: cashPriceAnalysis.impliedNominalAPR, source: "Implied from cash price and payment schedule", confidence: 0.85, rateRole: "implied", rateType: "unknown", basisAssumption: "IRR assumes the first payment is one payment period after agreement." };
     }
   }
-  let detected = detectCostsGeneric(text, principal, installmentCount, duration);
+  let detected = detectCostsGeneric(text, principal, installmentCount, duration, extracted.statedEMI.value);
+  detected = { ...detected, findings: resolveDefinedPercentageBases(text, detected.findings) };
   let reconciliationResolution: string | null = null;
   if (principal === null && priceCandidate && principalField.alternatives.length > 0) {
     const initialAddOns = detected.findings.filter((finding) => finding.category === "financed_addon" && finding.amount !== null)
@@ -588,8 +728,17 @@ export function analyzeLocally(
       principal = selected.value;
       reconciliationResolution = "Principal candidates " + [formatCurrency(selected.value, currencyCode), ...otherCandidates].join(" vs ")
         + " were checked against price plus financed items; the sum matched " + formatCurrency(partsTotal, currencyCode) + ".";
-      detected = detectCostsGeneric(text, principal, installmentCount, duration);
+      detected = detectCostsGeneric(text, principal, installmentCount, duration, extracted.statedEMI.value);
+      detected = { ...detected, findings: resolveDefinedPercentageBases(text, detected.findings) };
     }
+  }
+  const plausiblePrincipal = principal ?? (principalField.needsReview ? principalField.alternatives[0]?.value ?? null : null);
+  const plausibilityConflicts = checkPrincipalPlausibility(text, plausiblePrincipal, extracted.amountCandidates);
+  principalField = applyPlausibility(principalField, plausibilityConflicts);
+  principal = principalField.value;
+  if (principalField.needsReview && cashPrice === principal) {
+    cashPriceAnalysis = null;
+    if (rateField.rateRole === "implied") rateField = { ...extracted.rateField };
   }
   const allFindings = Array.from(new Map(detected.findings.map((finding) => [
     finding.position + ":" + finding.id + ":" + finding.category + ":" + finding.source.replace(/\s+/g, " ").trim().toLowerCase(),
@@ -620,6 +769,7 @@ export function analyzeLocally(
   const required = requirements[selectedCalculator] ?? requirements.reducing_balance ?? ["principal", "rate", "term"];
   const unresolvedInput: Record<string, boolean> = {
     principal: principalField.needsReview,
+    cash_price: principalField.needsReview && cashPrice === principal,
     rate: rateField.needsReview,
     term: termField.needsReview,
   };
@@ -652,13 +802,14 @@ export function analyzeLocally(
       ? "This short-term repayment pattern is not modeled as a monthly EMI; the stated schedule and cash-price comparison are shown where available."
       : null,
   };
-  const threshold = (rules as { riskBandThresholds?: { confidence: number } }).riskBandThresholds?.confidence ?? 0.7;
+  const threshold = rules.analysisConfidenceThreshold;
   let confidence = required.length
     ? Math.min(...required.map((input) => inputConfidence[input] ?? 0))
     : extracted.docType.confidence;
   const unresolvedRequired = required.some((input) => unresolvedInput[input]);
   const incompleteAnalysis = missingInputs.length > 0 || unresolvedRequired || confidence < threshold || Boolean(calculator.unsupportedReason);
-  const confidenceIssues: string[] = [];
+  const confidenceIssues: string[] = plausibilityConflicts.map((conflict) => "Principal " + formatCurrency(conflict.principal, currencyCode)
+    + " is smaller than " + conflict.label + " " + formatCurrency(conflict.conflictingValue, currencyCode) + ". Evidence: " + conflict.source);
   const alternativesText = (field: ExtractedField<number>) => field.alternatives.slice(0, 5)
     .map((candidate) => candidate.label + " " + formatCurrency(candidate.value, currencyCode))
     .join("; ");
@@ -761,6 +912,14 @@ export function analyzeLocally(
   const claims = detectClaimsGeneric(text, allFindings, rateField.rateType === "deferred" ? null : rateField.value, netExtraCost);
   const rateConfirmed = rateField.value !== null && rateField.confidence >= threshold && ["base", "promotional"].includes(rateField.rateRole) && rateField.rateType !== "deferred";
   const canonicalFindings = collectRuleFindings(text, allFindings, extracted.docType.type, claims, rateConfirmed);
+  const rateBasisRule = (rules as unknown as { rateBasisFinding?: { id: string; label: string; category: string; severity: number; explanation: string } }).rateBasisFinding;
+  if (rateField.basisAssumption && rateField.source && rateBasisRule) {
+    const position = Math.max(0, text.indexOf(rateField.source));
+    canonicalFindings.push(canonicalFinding({ id: rateBasisRule.id, label: rateBasisRule.label, category: rateBasisRule.category,
+      severity: rateBasisRule.severity, amount: null, percent: null, basis: null, frequency: null, conditions: [],
+      source: rateField.source, position, explanation: rateBasisRule.explanation, totalImpact: null, negated: false,
+      evidence: rateField.source, clauseSpan: [position, position + rateField.source.length], provenance: "assumed" }));
+  }
   const risk = calculateRisk(text, extracted.docType.type, canonicalFindings, claims, confidence, rateConfirmed, incompleteAnalysis, true);
   const warnings: string[] = [];
   const seenWarnings = new Set<string>();
@@ -795,6 +954,8 @@ export function analyzeLocally(
     const candidates = principalField.alternatives.slice(0, 4).map((candidate) => formatCurrency(candidate.value, currencyCode)).join(" vs ");
     addWarning("Principal is uncertain: " + (candidates || "conflicting amount candidates") + ". The label and stated-payment cross-check did not resolve the candidates.");
   }
+  for (const conflict of plausibilityConflicts) addWarning("Principal plausibility conflict: " + formatCurrency(conflict.principal, currencyCode)
+    + " principal versus " + conflict.label + " " + formatCurrency(conflict.conflictingValue, currencyCode) + ". Verify these values before relying on calculations. Evidence: " + conflict.source);
   if (currency === null) addWarning("Currency was not identified in the text; amounts are displayed using the USD fallback until you select a currency.");
 
   if (schedule) {
@@ -878,13 +1039,13 @@ export function analyzeLocally(
       confirmed: check.matched,
     });
   }
-  if (principalField.value !== null && reconciliations.some((check) => check.id === "amount_financed_reconciliation" && check.matched)) {
+  if (principalField.value !== null && !principalField.needsReview && reconciliations.some((check) => check.id === "amount_financed_reconciliation" && check.matched)) {
     principalField = { ...principalField, confidence: Math.max(principalField.confidence, 0.92) };
     confidence = required.length ? Math.min(...required.map((input) => input === "principal" ? principalField.confidence : inputConfidence[input] ?? 0)) : confidence;
   }
 
   let addOnImpact: AddOnImpact | null = null;
-  if (addOnTotal > 0 && principal !== null && duration !== null && rateField.value !== null && rateField.rateType !== "deferred") {
+  if (!principalField.needsReview && addOnTotal > 0 && principal !== null && duration !== null && rateField.value !== null && rateField.rateType !== "deferred") {
     const withAddOns = rateField.rateType === "flat"
       ? calculateFlatLoan(principal, rateField.value, duration)
       : calculateEMI(principal, rateField.value, duration);
@@ -986,7 +1147,7 @@ export function analyzeLocally(
       ((finding.evidence.length > 0 && warning.includes(finding.evidence.replace(/[.!?;]+$/, ""))) || warning.includes(finding.label)));
     if (!hasExisting) addFinding("unresolved_" + canonicalFindings.length, "Review required", "unresolved", 1, "", warning, "assumed");
   }
-  canonicalFindings.sort((a, b) => b.severity - a.severity || a.position - b.position);
+  canonicalFindings.splice(0, canonicalFindings.length, ...mergeClauseFindings(canonicalFindings).sort((a, b) => b.severity - a.severity || a.position - b.position));
   const context: AnalysisContext = {
     id: createAnalysisId(),
     docType: extracted.docType,
@@ -1030,6 +1191,7 @@ export function analyzeLocally(
     warnings: Array.from(new Set(warnings)),
     riskScore: risk.score,
     riskBand: risk.band,
+    analysisIncomplete: incompleteAnalysis,
     riskBreakdown: risk.breakdown,
     summary,
     hiddenFees,
@@ -1066,7 +1228,10 @@ export function analyzeLocally(
       })(),
       conditions: lateFeeFinding?.conditions ?? [],
     },
-    rawText: text,
+    periodCandidates: extracted.periodCandidates,
+    plausibilityConflicts,
+    documentStructure: inspectLegalStructure(text),
+    rawText: originalText,
   };
-  return freezeAnalysisContext(context) as AnalysisContext;
+  return freezeAnalysisContext(restoreOriginalEvidence(context, document)) as AnalysisContext;
 }
