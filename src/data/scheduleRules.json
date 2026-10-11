@@ -1,0 +1,50 @@
+{
+  "numberWords": { "zero": 0, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10, "eleven": 11, "twelve": 12, "thirteen": 13, "fourteen": 14, "fifteen": 15, "sixteen": 16, "seventeen": 17, "eighteen": 18, "nineteen": 19, "twenty": 20, "thirty": 30, "forty": 40, "fifty": 50, "sixty": 60, "seventy": 70, "eighty": 80, "ninety": 90 },
+  "numberScales": { "hundred": 100, "thousand": 1000 },
+  "units": [
+    { "unit": "day", "pattern": "days?|daily", "months": 0.03287671232876712, "periodsPerYear": 365 },
+    { "unit": "week", "pattern": "weeks?|weekly|wks?", "months": 0.23076923076923078, "periodsPerYear": 52 },
+    { "unit": "fortnight", "pattern": "fortnights?|fortnightly|bi[- ]?weekly", "months": 0.46153846153846156, "periodsPerYear": 26 },
+    { "unit": "month", "pattern": "months?|monthly|mos?", "months": 1, "periodsPerYear": 12 },
+    { "unit": "year", "pattern": "years?|yearly|yrs?|annum|annual(?:ly)?|p\\.?a\\.?", "months": 12, "periodsPerYear": 1 }
+  ],
+  "frequencies": [
+    { "pattern": "semi[- ]?monthly|twice\\s+(?:a|per|each)\\s+month", "unit": "month", "interval": 0.5 },
+    { "pattern": "bi[- ]?weekly|fortnightly|every\\s+other\\s+week", "unit": "fortnight", "interval": 1 },
+    { "pattern": "quarterly", "unit": "month", "interval": 3 },
+    { "pattern": "semi[- ]?annual(?:ly)?|half[- ]yearly", "unit": "month", "interval": 6 },
+    { "pattern": "daily", "unit": "day", "interval": 1 },
+    { "pattern": "weekly", "unit": "week", "interval": 1 },
+    { "pattern": "monthly", "unit": "month", "interval": 1 },
+    { "pattern": "annual(?:ly)?|yearly", "unit": "year", "interval": 1 }
+  ],
+  "paymentNounPattern": "installments?|instalments?|payments?|repayments?|remittances?",
+  "paymentLabelPattern": "(?:scheduled|regular|monthly|weekly|daily|fortnightly)?\\s*(?:repayments?|payments?|installments?|instalments?|EMIs?|remittances?|debits?)",
+  "countLabelPattern": "(?:number|no\\.?|count)\\s+(?:of\\s+)?(?:payments?|installments?|instalments?|repayments?)",
+  "paymentTimingPattern": "due|payable|repay|payment|installment|instalment|remittance|debit",
+  "countModifierPattern": "equal|interest[- ]free|fixed|scheduled|consecutive|regular|monthly|weekly|daily|bi[- ]?weekly|fortnightly|quarterly|semi[- ]?monthly|annual(?:ly)?|yearly",
+  "explicitTermPattern": "(?:loan|repayment|contract(?:ual)?)\\s+(?:term|period|duration)|term|tenure|tenor|duration|maturity",
+  "termConnectorPattern": "for|over|within",
+  "nonTermPattern": "grace|late|overdue|cure|cancel(?:lation)?|cooling[- ]off|withdraw|rescind|opt[- ]out|notice|notify|trial|promo(?:tional)?|introductory|teaser|offer\\s+expires?",
+  "nonTermDurationRoles": [
+    { "role": "grace", "pattern": "late(?:\\s+(?:fee|charge|payment))?|overdue|delinquen(?:t|cy)|past[- ]due", "priority": 45 }
+  ],
+  "feeLabelPattern": "fees?|charges?|premiums?|insurance|tax(?:es)?|penalt(?:y|ies)|deposits?|down\\s+payment",
+  "purchasedTotalPattern": "purchased\\s+amount|receivables\\s+purchased|total\\s+repayment|total\\s+of\\s+payments",
+  "remittancePattern": "remittances?|remit|withhold|debits?",
+  "currencyPattern": "US\\$|C\\$|A\\$|S\\$|[$₹€£¥]|\\b(?:USD|INR|EUR|GBP|JPY|CAD|AUD|SGD|AED|Rs\\.?)",
+  "quantitySuffixPattern": "payments?|repayments?|installments?|instalments?|remittances?|months?|days?|weeks?|years?|times?|%|percent",
+  "maximumClauseCharacters": 500,
+  "maximumFrequencyDistance": 150,
+  "maximumCount": 12000,
+  "countRoundingTolerance": 0.015,
+  "totalRelativeTolerance": 0.001,
+  "numericFormatting": {
+    "decimalCommaMaximumPlaces": 2,
+    "moneyContextPattern": "principal|amount|balance|fee|charge|payment|price|deposit|advance|premium",
+    "decimalCurrencyPattern": "€|EUR",
+    "groupedSpacePattern": "^\\d{1,3}(?: \\d{3})+(?:[.,]\\d{1,2})?$|^\\d{1,2}(?: \\d{2})* \\d{3}(?:[.,]\\d{1,2})?$",
+    "spacedDigitPattern": "^\\d(?: \\d)+(?:[.,]\\d(?: \\d)*)?$",
+    "apostropheGroupingPattern": "(?<=\\d)['’](?=\\d{3}(?:\\D|$))"
+  }
+}

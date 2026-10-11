@@ -1,4 +1,6 @@
-
+import scheduleRules from "@/data/scheduleRules.json";
+import { normalizeNumericLiteral } from "./documentNormalization";
+import { countedSchedules, NUMBER_PATTERN, parseWrittenNumber, UNIT_PATTERN, unitSpec } from "./scheduleParsing";
 
 const isNum = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);
 
@@ -25,13 +27,7 @@ const PERIODS_PER_YEAR: Record<TimeUnit, number> = {
 };
 
 export function parseTimeUnit(raw: string): TimeUnit | null {
-  const s = raw.trim().toLowerCase();
-  if (/^(day|days)$/.test(s)) return "day";
-  if (/^(week|weeks|weekly)$/.test(s)) return "week";
-  if (/^(fortnight|fortnights|fortnightly|bi-?weekly)$/.test(s)) return "fortnight";
-  if (/^(month|months|mo|mos|monthly)$/.test(s)) return "month";
-  if (/^(year|years|yr|yrs|annum|annual|annually|p\.?a\.?)$/.test(s)) return "year";
-  return null;
+  return unitSpec(raw)?.unit as TimeUnit | undefined ?? null;
 }
 
 /** Convert a duration (e.g. 14 days, 3 years) to months. */
@@ -46,11 +42,6 @@ export function toAnnualRate(value: number, per: TimeUnit): number | null {
   return value * PERIODS_PER_YEAR[per];
 }
 
-const NUMBER_WORDS: Record<string, string> = {
-  one: "1", two: "2", three: "3", four: "4", five: "5", six: "6",
-  seven: "7", eight: "8", nine: "9", ten: "10", eleven: "11", twelve: "12",
-};
-
 export interface ParsedDuration {
   months: number;
   /** "high" = explicitly labeled term/tenure/installment schedule; "low" = guessed from context */
@@ -58,8 +49,6 @@ export interface ParsedDuration {
   /** The text that produced the match (for highlighting / explainability) */
   source: string;
 }
-
-const UNIT_RE = "(years?|yrs?|months?|mos?|weeks?|days?|fortnights?)";
 
 /**
  * Extract the loan duration from free text and return it in months.
@@ -69,65 +58,45 @@ const UNIT_RE = "(years?|yrs?|months?|mos?|weeks?|days?|fortnights?)";
  */
 export function normalizeDuration(text: string): ParsedDuration | null {
   if (!text) return null;
-
-  // "one year" -> "1 year" (only when followed by a time unit)
-  const t = text.replace(
-    /\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\b(?=\s*[- ]?\s*(?:year|yr|month|mo|week|day|fortnight))/gi,
-    (w) => NUMBER_WORDS[w.toLowerCase()],
-  );
-
-  // A) "N installments ... every [K] unit"  => N * K * unit
-  const a = t.match(
-    new RegExp(
-      "(\\d+)\\s*(?:equal\\s+|interest[- ]free\\s+|monthly\\s+|bi-?weekly\\s+)*(?:installments?|instalments?|payments?)\\b[\\s\\S]{0,200}?\\bevery\\s+(\\d+)?\\s*(days?|weeks?|fortnights?|months?)",
-      "i",
-    ),
-  );
-  if (a) {
-    const n = parseInt(a[1], 10);
-    const k = a[2] ? parseInt(a[2], 10) : 1;
-    const unit = parseTimeUnit(a[3]);
-    const months = unit ? toMonths(n * k, unit) : null;
-    if (months) return { months, confidence: "high", source: a[0] };
+  const explicit = new RegExp(`\\b(?:${scheduleRules.explicitTermPattern})\\s*(?:of|:|is|=|[-–—])?\\s*(${NUMBER_PATTERN})(?:\\s*\\((\\d+)\\))?\\s*[- ]?\\s*(${UNIT_PATTERN})\\b`, "gi");
+  for (const match of text.matchAll(explicit)) {
+    const prefix = text.slice(Math.max(0, match.index! - 45), match.index!).split(/[.;\n]/).pop() ?? "";
+    if (new RegExp(`\\b(?:${scheduleRules.nonTermPattern})\\b`, "i").test(prefix)) continue;
+    const value = parseWrittenNumber(match[1]);
+    if (value && (!match[2] || Number(match[2]) === value)) {
+      const unit = unitSpec(match[3]);
+      if (unit) return { months: value * unit.months, confidence: "high", source: match[0] };
+    }
   }
-
-  // B) "12 monthly installments", "26 fortnightly payments"
-  const b = t.match(/(\d+)\s*(?:equal\s+)?(monthly|weekly|fortnightly|bi-?weekly)\s+(?:installments?|instalments?|payments?)/i);
-  if (b) {
-    const unit = parseTimeUnit(b[2]);
-    const months = unit ? toMonths(parseInt(b[1], 10), unit) : null;
-    if (months) return { months, confidence: "high", source: b[0] };
+  const schedules = countedSchedules(text).filter((entry) => entry.months !== null);
+  if (schedules.length && schedules.every((entry) => Math.abs(entry.months! - schedules[0].months!) < 0.01)) {
+    return { months: schedules[0].months!, confidence: "high", source: schedules[0].source };
   }
-
-  // C) Explicitly labeled: "Term: 60 months", "Tenure of 3 years", "Duration - 14 days"
-  const c = t.match(
-    new RegExp(
-      "(?:loan\\s+term|repayment\\s+period|loan\\s+period|term|tenure|tenor|duration)\\s*(?:of|:|is|-)?\\s*(\\d+(?:\\.\\d+)?)\\s*[- ]?\\s*" + UNIT_RE,
-      "i",
-    ),
-  );
-  if (c) {
-    const unit = parseTimeUnit(c[2]);
-    const months = unit ? toMonths(parseFloat(c[1]), unit) : null;
-    if (months) return { months, confidence: "high", source: c[0] };
+  const inferred = new RegExp(`\\b(?:${scheduleRules.termConnectorPattern})\\s+(${NUMBER_PATTERN})\\s*[- ]?\\s*(${UNIT_PATTERN})\\b`, "gi");
+  for (const match of text.matchAll(inferred)) {
+    const prefix = text.slice(Math.max(0, match.index! - 70), match.index!).split(/[.;\n]/).pop() ?? "";
+    if (new RegExp(`\\b(?:${scheduleRules.nonTermPattern})\\b`, "i").test(prefix)) continue;
+    const value = parseWrittenNumber(match[1]);
+    const unit = unitSpec(match[2]);
+    if (value && unit) return { months: value * unit.months, confidence: "low", source: match[0] };
   }
-
-  // D) "for 36 months", "over 5 years" (skips promo phrasing like "for the first 12 months")
-  const d = t.match(new RegExp("\\b(?:for|over|within)\\s+(\\d+(?:\\.\\d+)?)\\s*[- ]?\\s*" + UNIT_RE, "i"));
-  if (d) {
-    const unit = parseTimeUnit(d[2]);
-    const months = unit ? toMonths(parseFloat(d[1]), unit) : null;
-    if (months) return { months, confidence: "low", source: d[0] };
-  }
-
   return null;
 }
 
 /** "Rs. 5,00,000" / "$1,200.50" / "₹ 25,000" -> number (null if unparseable). */
 export function parseAmount(raw: string): number | null {
-  const cleaned = raw.replace(/[^0-9.]/g, "");
-  if (!cleaned || cleaned === ".") return null;
-  const n = parseFloat(cleaned);
+  const matches = Array.from(raw.matchAll(/[+-]?\d(?:[\d.,'’ \u00a0\u202f]*\d)?/g));
+  if (matches.length !== 1) return null;
+  const sign = matches[0][0].startsWith("-") ? -1 : 1;
+  let token = matches[0][0].replace(/^[+-]/, "").replace(/[\u00a0\u202f]/g, " ");
+  token = token.replace(new RegExp(scheduleRules.numericFormatting.apostropheGroupingPattern, "g"), "");
+  if (/\s/.test(token)) {
+    if (!new RegExp(scheduleRules.numericFormatting.groupedSpacePattern).test(token)) return null;
+    token = token.replace(/ /g, "");
+  }
+  const cleaned = normalizeNumericLiteral(token, { money: true, decimalCurrency: new RegExp(scheduleRules.numericFormatting.decimalCurrencyPattern, "i").test(raw) });
+  if (cleaned === null) return null;
+  const n = sign * Number(cleaned.replace(/,/g, ""));
   return isNum(n) ? n : null;
 }
 

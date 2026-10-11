@@ -35,6 +35,7 @@
     {"id": "rate_lock", "label": "Rate lock", "pattern": "\\brate\\s+(?:lock(?:ed)?|guarantee)\\b", "explanation": "A documented lock protects the quoted rate for the stated period.", "acceptedPolarities": ["asserted", "conditional"]},
     {"id": "cancellation_window", "label": "Cancellation window", "pattern": "\\b(?:cancel|cancellation|withdraw|cooling[- ]off|rescind)\\b[^.;]{0,70}\\b\\d+\\s*(?:days?|hours?)\\b", "disallowedPatterns": ["\\b(?:cannot|can\\s+not|may\\s+not|not\\s+(?:allowed|permitted)\\s+to|unable\\s+to|don['’]t|do\\s+not)\\s+(?:cancel|withdraw|rescind)\\b"], "explanation": "A stated cancellation or cooling-off window can allow withdrawal under the listed conditions.", "acceptedPolarities": ["asserted", "negated", "waived/zero", "conditional"]},
     {"id": "grace_period", "label": "Grace period", "pattern": "\\bgrace\\s+period\\b", "explanation": "The stated grace period limits charges during the documented window.", "acceptedPolarities": ["asserted", "waived/zero", "conditional"]},
+    {"id": "annual_fee_waiver", "feeRuleId": "annual", "label": "No annual fee", "pattern": "\\b(?:no\\s+annual\\s+fee|annual\\s+fee\\s*(?:is|of|:)??\\s*(?:[$]\\s*0(?:\\.00)?|zero|waived))\\b", "explanation": "An annual fee is waived under the stated conditions.", "acceptedPolarities": ["negated", "waived/zero", "conditional"]},
     {"id": "arbitration", "label": "No compulsory arbitration", "pattern": "\\b(?:binding\\s+|mandatory\\s+)?arbitration\\b", "explanation": "The agreement excludes the stated arbitration requirement.", "acceptedPolarities": ["negated", "waived/zero"]}
   ],
   "monetaryBases": [
@@ -62,14 +63,14 @@
   },
   "calculatorRegistry": {
     "default": "reducing_balance",
-    "documentTypes": {"installment_loan": "reducing_balance", "auto_loan": "reducing_balance", "mortgage": "reducing_balance", "bnpl": "reducing_balance_with_offsets_and_tax", "payday": "short_term", "credit_card": "revolving", "subscription": "cash_price_vs_total", "rent_to_own": "cash_price_vs_total", "gold_loan": "reducing_balance", "advance_fee_scam": "reducing_balance", "unknown": "reducing_balance"}
+    "documentTypes": {"installment_loan": "reducing_balance", "personal_loan_kfs": "reducing_balance", "student_loan": "reducing_balance", "auto_loan": "reducing_balance", "mortgage": "reducing_balance", "bnpl": "reducing_balance_with_offsets_and_tax", "merchant_cash_advance": "cash_price_vs_total", "payday": "short_term", "credit_card": "revolving", "subscription": "cash_price_vs_total", "rent_to_own": "cash_price_vs_total", "gold_loan": "reducing_balance", "advance_fee_scam": "reducing_balance", "unknown": "reducing_balance"}
   },
   "calculatorInputs": {
     "reducing_balance": ["principal", "rate", "term"],
     "reducing_balance_with_offsets_and_tax": ["principal", "rate", "term"],
     "flat": ["principal", "rate", "term"],
     "short_term": ["principal", "rate", "term"],
-    "revolving": ["principal", "rate", "payment_rule"],
+    "revolving": ["rate", "payment_rule"],
     "cash_price_vs_total": ["cash_price", "scheduled_total"]
   },
   "listCategories": [
@@ -82,6 +83,8 @@
   ],
   "principalLabels": [
     {"id": "amount_financed", "pattern": "\\bamount\\s+financed\\b", "score": 140, "kind": "principal"},
+    {"id": "net_proceeds", "pattern": "\\b(?:net\\s+proceeds|net\\s+amount\\s+(?:advanced|funded)|funds\\s+advanced|amount\\s+advanced|amount\\s+funded)\\b", "score": 145, "kind": "principal"},
+    {"id": "purchased_amount", "pattern": "\\b(?:purchased\\s+amount|receivables\\s+purchased)\\b", "score": 90, "kind": "price"},
     {"id": "loan_amount", "pattern": "\\bloan\\s+amount\\b", "score": 130, "kind": "principal"},
     {"id": "defined_loan", "pattern": "\\b(?:loan|credit\\s+facility)\\b", "score": 115, "kind": "principal"},
     {"id": "advance_amount", "pattern": "\\b(?:cash\\s+)?advance(?:\\s+amount)?\\b", "score": 120, "kind": "principal"},
@@ -90,6 +93,8 @@
     {"id": "credit_amount", "pattern": "\\bcredit\\s+amount\\b", "score": 125, "kind": "principal"},
     {"id": "financed_amount", "pattern": "\\bfinanced\\s+amount\\b", "score": 120, "kind": "principal"},
     {"id": "purchase_amount", "pattern": "\\bpurchase\\s+amount\\b", "score": 65, "kind": "price"},
+    {"id": "payments_total", "pattern": "\\b(?:total\\s+of\\s+payments|total\\s+repayment|total\\s+payable)\\b", "score": 65, "kind": "price"},
+    {"id": "finance_charge", "pattern": "\\b(?:finance|interest)\\s+charge\\b|\\btotal\\s+interest\\b", "score": 50, "kind": "price"},
     {"id": "purchase_price", "pattern": "\\b(?:purchase|product|cash|vehicle|sale)\\s+price\\b", "score": 65, "kind": "price"},
     {"id": "negative_principal_label", "pattern": "\\b(?:emi|monthly\\s+payments?|payments?|installments?|instalments?|fees?|charges?|tax(?:es)?|limits?|deposit|down\\s+payment|discount|coverage|insurance|gap|apr|interest\\s+rate|term|tenure|tenor|duration|period)\\b", "score": -160, "kind": "exclude"},
     {"id": "amount_before_loan", "pattern": "^\\s*(?:loan|credit\\s+facility|credit|advance)\\b", "score": 120, "kind": "principal", "position": "after"}
@@ -104,8 +109,23 @@
     {"id": "gold_loan", "label": "Gold-backed loan", "signals": [{"pattern": "gold\\s+loan|gold\\s+jewell?ery|pledged\\s+gold", "weight": 8}, {"pattern": "assaying\\s+charge|loan-to-value", "weight": 2}]},
     {"id": "subscription", "label": "Subscription", "signals": [{"pattern": "subscription|recurring\\s+membership|monthly\\s+membership", "weight": 6}, {"pattern": "cancel\\s+anytime|auto[- ]renew", "weight": 3}]},
     {"id": "advance_fee_scam", "label": "Possible advance-fee scam", "signals": [{"pattern": "guaranteed\\s+approval|no\\s+credit\\s+check", "weight": 3}, {"pattern": "upfront\\s+(?:insurance|processing|release)\\s+fee", "weight": 4}, {"pattern": "wire\\s+transfer|gift\\s+card|crypto(?:currency)?\\s+payment", "weight": 5}]},
+    {"id": "merchant_cash_advance", "label": "Merchant cash advance", "signals": [{"pattern": "merchant\\s+cash\\s+advance|mca\\b", "weight": 10}, {"pattern": "purchased\\s+(?:receivables|amount)|purchase\\s+of\\s+(?:future\\s+)?receivables", "weight": 7}, {"pattern": "daily\\s+(?:remittance|debit|withhold(?:ing)?)|remit(?:tance)?[^.;]{0,45}daily", "weight": 5}, {"pattern": "factor\\s+rate|holdback\\s+(?:percentage|rate)", "weight": 4}]},
+    {"id": "personal_loan_kfs", "label": "Personal loan key facts statement", "signals": [{"pattern": "key\\s+facts\\s+statement|\\bkfs\\b", "weight": 9}, {"pattern": "personal\\s+loan", "weight": 3}, {"pattern": "annual\\s+percentage\\s+rate|amount\\s+financed|total\\s+of\\s+payments", "weight": 2}]},
+    {"id": "student_loan", "label": "Student loan", "signals": [{"pattern": "student\\s+loan|education\\s+loan", "weight": 9}, {"pattern": "in[- ]school|school\\s+enrollment|grace\\s+period[^.;]{0,50}graduat", "weight": 3}]},
     {"id": "installment_loan", "label": "Installment loan", "signals": [{"pattern": "installment\\s+loan|personal\\s+loan|loan\\s+agreement|amount\\s+financed|loan\\s+amount|principal", "weight": 3}, {"pattern": "apr|annual\\s+percentage\\s+rate|repayment\\s+period|loan\\s+term", "weight": 1}]}
   ],
+  "numericCandidateRoles": {
+    "contextCharacters": 70,
+    "moneyLabels": ["principal", "loan amount", "amount financed", "amount borrowed", "advance amount", "purchased amount", "purchase amount", "price", "total of payments", "total repayment", "finance charge", "interest charge", "fee", "charge", "premium", "insurance", "remittance"],
+    "feeLabels": ["fee", "charge", "commission", "origination", "processing", "documentation", "premium", "insurance", "tax", "gst"],
+    "penaltyLabels": ["late", "missed", "overdue", "default", "penalty", "reschedule"],
+    "countUnits": "installments?|instalments?|payments?|remittances?|debits?|times",
+    "timeUnits": "hours?|days?|weeks?|fortnights?|months?|mos?|years?|yrs?",
+    "rateLabelPattern": "\\b(?:apr|annual percentage rate|interest(?: rate)?|rate)\\b",
+    "marginPattern": "\\bprime\\s*(?:\\+|plus)\\s*$",
+    "roleWeights": {"money": 50, "count": 70, "time": 60, "rate": 75, "margin": 75, "penalty": 20, "promotional": 25, "feePercent": 65, "fee": 45}
+  },
+  "constraintResolution": {"paymentTolerance": 0.02, "totalTolerance": 0.01, "maxCandidatesPerField": 8, "itemizedSumLabels": "\\b(?:total|amount financed|total of payments|total repayment|net proceeds|cash to borrower)\\b", "financedAddOnPattern": "\\b(?:financed|added to (?:the )?(?:loan|principal|amount financed)|included in (?:the )?(?:loan|amount financed)|rolled into (?:the )?(?:loan|principal))\\b", "financedAddOnLabelPattern": "\\b(?:insurance|premium|gap|warranty|service contract|protection plan)\\b"},
   "feeCatalog": [
     {"id": "origination", "label": "Origination fee", "patterns": ["origination\\s+fee", "loan\\s+setup\\s+fee"], "category": "upfront_fee", "severity": 2, "explanation": "Upfront charge for creating or setting up the credit.", "defaultBasis": "principal"},
     {"id": "documentation_fee", "label": "Documentation fee", "patterns": ["documentation\\s+fee", "document\\s+fee", "doc\\s+fee"], "category": "upfront_fee", "severity": 2, "explanation": "A documentation charge is added to the transaction cost.", "defaultBasis": "principal"},
@@ -165,6 +185,9 @@
   ],
   "riskRules": [
     {"id": "claim_contradiction", "category": "claims", "weight": 20, "pattern": "", "severity": 4},
+    {"id": "revolving_credit_product", "category": "document_type", "weight": 5, "pattern": "\\b(?:credit\\s+card|cardholder|revolving\\s+credit)\\b", "severity": 1, "minimumRiskBand": "caution"},
+    {"id": "merchant_cash_advance_product", "category": "document_type", "weight": 5, "pattern": "\\b(?:merchant\\s+cash\\s+advance|purchased\\s+(?:receivables|amount)|factor\\s+rate|daily\\s+remittance)\\b", "severity": 2, "minimumRiskBand": "high"},
+    {"id": "personal_guaranty", "category": "guaranty", "weight": 20, "pattern": "\\b(?:personal\\s+guarant(?:y|ee)|guarantor|joint\\s+and\\s+several\\s+liabilit(?:y|ies))\\b", "severity": 5, "minimumRiskBand": "high"},
     {"id": "deferred_interest", "category": "pricing", "weight": 20, "pattern": "deferred\\s+interest|retroactive(?:ly)?", "severity": 5},
     {"id": "arbitration_waiver", "category": "legal", "weight": 15, "pattern": "waive[\\s\\S]{0,120}class action|binding arbitration|class[- ]action[^.;]{0,80}rights?[^.;]{0,50}waived", "severity": 4},
     {"id": "automatic_optional_addon", "category": "claims", "weight": 15, "pattern": "automatically added[\\s\\S]{0,100}(?:opt out|unless you opt)", "severity": 4},
@@ -184,6 +207,7 @@
     {"category": "tax", "term": "Tax on financing cost", "definition": "A tax assessed on interest or fees increases the amount paid beyond the stated financing charge."},
     {"category": "offset", "term": "Discount or offset", "definition": "A discount or cashback reduces cost only to the extent that it is actually applied to the amount owed."},
     {"category": "upfront_fee", "term": "Upfront fee", "definition": "A one-time charge may be paid at signing or added to the financed balance."},
+    {"category": "conditional_term", "term": "Conditional term", "definition": "A stated benefit changes or expires after its initial period; the later qualifying amount is not a clean protection."},
     {"category": "recurring_fee", "term": "Recurring fee", "definition": "A repeating charge can add to each payment or recur during the agreement."},
     {"category": "penalty", "term": "Penalty fee", "definition": "A contingent charge can apply after a missed payment or other specified event."},
     {"category": "prepayment", "term": "Prepayment charge", "definition": "A charge may apply when the balance is repaid before the scheduled end of the agreement."},
@@ -208,7 +232,7 @@
     {"category": "mismatch", "term": "Amount mismatch", "definition": "The listed amount does not reconcile with the other stated prices, fees, or proceeds."},
     {"category": "ownership_terms", "term": "Conditional ownership", "definition": "Ownership may transfer only after the stated payment or contract conditions are completed."},
     {"category": "privacy", "term": "Data sharing", "definition": "The agreement permits sharing personal or payment information with the named parties or partners."},
-    {"category": "unresolved", "term": "Review required", "definition": "The document contains a value or term that could not be resolved confidently from the available text."}
+    {"category": "unresolved", "term": "Unverified field", "definition": "The displayed field is withheld because candidate values or arithmetic checks conflict; inspect the named evidence and competing values."}
   ],
   "glossary": [
     {"id": "deferred_interest", "term": "Deferred interest", "pattern": "deferred\\s+interest|retroactive\\w*", "definition": "Interest may be charged later for an earlier promotional period if the required balance is not paid by its deadline."},
@@ -232,6 +256,10 @@
     "bands": {"low": 0, "caution": 15, "high": 40, "critical": 70},
     "repeatedFindingFactor": 0.6
   },
+  "costModel": {"financingCostCategories": ["upfront_fee"], "includeRecurringFeesInFinancingCost": false, "includeOptionalProductsInFinancingCost": false, "outstandingPercentQualifier": "up to"},
+  "documentTypeScoreFloors": {"credit_card": 15, "merchant_cash_advance": 60},
+  "evaluation": {"confidentWrongThreshold": 0.8, "tolerances": {"principal": 0.005, "rate": 0.05, "term": 0.1, "payment": 0.05}},
+  "aiExtraction": {"maxTextCharacters": 48000, "evidenceMinimumCharacters": 8, "valueTolerance": 0.005, "fallbackConfidence": 0.78, "roleCandidateScore": 75, "baseRateEvidencePattern": "\\b(?:apr|annual\\s+percentage\\s+rate|annual\\s+(?:interest\\s+)?rate|base\\s+rate|interest\\s+rate)\\b", "paymentEvidencePattern": "\\b(?:emi|scheduled\\s+payment|installment|instalment|remittance|payment\\s+amount)\\b", "fallbackFieldsByDocumentType": {"installment_loan": ["principal", "annualAPR", "termMonths"], "personal_loan_kfs": ["principal", "annualAPR", "termMonths"], "student_loan": ["principal", "annualAPR", "termMonths"], "auto_loan": ["principal", "annualAPR", "termMonths"], "mortgage": ["principal", "annualAPR", "termMonths"], "bnpl": ["principal", "payment"], "merchant_cash_advance": ["principal", "payment"], "payday": ["principal", "annualAPR", "termMonths"], "rent_to_own": ["principal", "payment"], "gold_loan": ["principal", "annualAPR", "termMonths"], "credit_card": ["annualAPR"], "unknown": ["principal", "annualAPR", "termMonths", "payment"]}},
   "rateBasisFinding": {"id": "rate_basis_unspecified", "label": "Rate basis not stated", "category": "pricing", "severity": 1, "explanation": "The agreement does not say whether the rate uses a flat or reducing-balance calculation; the standard estimate assumes reducing balance."},
   "findingsUI": {"protectionExplanation": "These clauses provide the stated protections, subject to their documented conditions."},
   "textNormalization": {
@@ -257,7 +285,7 @@
   },
   "legalStructure": {
     "referenceTerms": ["loan", "principal", "advance", "facility amount", "amount financed", "credit amount", "credit"],
-    "principalTermPattern": "loan|principal|advance|facility amount|amount financed|credit amount|credit",
+    "principalTermPattern": "loan|principal|advance|facility amount|amount financed|credit amount|credit|purchased amount",
     "amountReferencePattern": "\\b(?:of|on)\\s+(?:the\\s+)?(?<reference>[^,.;()]+)"
   },
   "periodRoles": {

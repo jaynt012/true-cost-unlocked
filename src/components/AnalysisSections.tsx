@@ -11,6 +11,7 @@ export type AnalysisResult = AnalysisContext;
 interface Props {
   context: AnalysisContext;
   onPrincipalSelect?: (amount: number) => void;
+  onEvidenceSelect?: (span: [number, number]) => void;
   aiEnhancementStatus?: "unconfigured" | "loading" | "ready" | "error";
 }
 
@@ -96,6 +97,7 @@ function FindingAmounts({ finding, context }: { finding: AnalysisFinding; contex
   if (!amounts.size) return null;
   return <div className="mt-1 space-y-1 text-foreground">{[...amounts.entries()].map(([key, component]) => <p key={key}>
     {finding.components && <span>{component.label}: </span>}
+    {component.qualifier && <span className="capitalize">{component.qualifier} </span>}
     {component.amount !== null ? formatCurrency(component.amount, context.currencyCode) : `${component.percent}%`}
     {component.amount !== null && component.percent !== null && <span> ({component.percent}%)</span>}
     {component.amount === null && component.percent !== null && component.totalImpact !== null && <span> = {formatCurrency(component.totalImpact, context.currencyCode)} (computed)</span>}
@@ -103,23 +105,25 @@ function FindingAmounts({ finding, context }: { finding: AnalysisFinding; contex
   </p>)}</div>;
 }
 
-function FindingList({ findings, context, positive = false }: { findings: AnalysisFinding[]; context: AnalysisContext; positive?: boolean }) {
-  if (positive) return <ul className="space-y-2">{distinctFindings(findings).map((finding) => <li key={`${finding.id}:${finding.position}`} className="font-mono text-xs"><details><summary className="cursor-pointer font-semibold text-foreground">{finding.label}{finding.conditions.length > 0 && <span className="ml-2 font-normal text-muted-foreground">· {finding.conditions.join("; ")}</span>}</summary>{finding.evidence && <blockquote className="mt-1 border-l-2 border-border pl-3 text-muted-foreground">{finding.evidence}</blockquote>}</details></li>)}</ul>;
+function FindingList({ findings, context, positive = false, onEvidenceSelect }: { findings: AnalysisFinding[]; context: AnalysisContext; positive?: boolean; onEvidenceSelect?: (span: [number, number]) => void }) {
+  if (positive) return <ul className="space-y-2">{distinctFindings(findings).map((finding) => <li key={`${finding.id}:${finding.position}`} className="font-mono text-xs"><details><summary className="cursor-pointer font-semibold text-foreground">{finding.label}{finding.conditions.length > 0 && <span className="ml-2 font-normal text-muted-foreground">· {finding.conditions.join("; ")}</span>}</summary>{finding.evidence && <blockquote className="mt-1 border-l-2 border-border pl-3 text-muted-foreground">{finding.evidence}</blockquote>}{finding.sourceLocation && <button type="button" onClick={() => onEvidenceSelect?.(finding.clauseSpan)} className="mt-1 text-[10px] text-primary underline">Page {finding.sourceLocation.page} · highlight extracted text</button>}</details></li>)}</ul>;
   return <ul className="space-y-4">{distinctFindings(findings).map((finding) => <li key={`${finding.id}:${finding.position}`} className="font-mono text-xs">
     <div className="flex items-start justify-between gap-3"><span className="font-semibold text-foreground">{finding.label}</span>{!positive && <span className="shrink-0 text-[10px] text-muted-foreground">{finding.severity >= 5 ? "CRITICAL" : finding.severity >= 4 ? "HIGH" : finding.severity >= 2 ? "MEDIUM" : "LOW"}</span>}</div>
     <FindingAmounts finding={finding} context={context} />
     {finding.explanation && <p className="mt-1 text-muted-foreground">{finding.explanation}</p>}
     {finding.evidence && <blockquote className="mt-2 border-l-2 border-border pl-3 text-muted-foreground">{finding.evidence}</blockquote>}
+    {finding.sourceLocation && <button type="button" onClick={() => onEvidenceSelect?.(finding.clauseSpan)} className="mt-1 font-mono text-[10px] text-primary underline">Page {finding.sourceLocation.page} · highlight extracted text</button>}
     {finding.conditions.length > 0 && <p className="mt-1 text-muted-foreground">Applies: {finding.conditions.join("; ")}</p>}
     <p className="mt-1 text-[10px] text-muted-foreground">{finding.provenance.replace(/-/g, " ")}</p>
   </li>)}</ul>;
 }
 
-export function AnalysisFindings({ context }: Props) {
-  const issues = context.findings.filter((finding) => finding.category !== "protection");
+export function AnalysisFindings({ context, onEvidenceSelect }: Props) {
+  const issues = context.findings.filter((finding) => finding.category !== "protection" && finding.category !== "conditional_term");
   return <TerminalCard title="FINDINGS" icon={FileWarning} tag={issues.length ? `${issues.length} TO REVIEW` : undefined}>
-    {issues.length > 0 && <FindingList findings={issues} context={context} />}
-    {context.protections.length > 0 && <div className={issues.length ? "mt-5 border-t border-border pt-4" : ""}><h3 className="mb-2 font-mono text-sm font-semibold text-primary">Positive terms</h3><p className="mb-3 font-mono text-xs text-muted-foreground">{(rules as unknown as { findingsUI: { protectionExplanation: string } }).findingsUI.protectionExplanation}</p><FindingList findings={context.protections} context={context} positive /></div>}
+    {issues.length > 0 && <FindingList findings={issues} context={context} onEvidenceSelect={onEvidenceSelect} />}
+    {context.conditionalTerms && context.conditionalTerms.length > 0 && <div className={issues.length ? "mt-5 border-t border-border pt-4" : ""}><h3 className="mb-2 font-mono text-sm font-semibold text-amber-500">Conditional terms</h3><FindingList findings={context.conditionalTerms} context={context} positive onEvidenceSelect={onEvidenceSelect} /></div>}
+    {context.protections.length > 0 && <div className={issues.length || (context.conditionalTerms?.length ?? 0) > 0 ? "mt-5 border-t border-border pt-4" : ""}><h3 className="mb-2 font-mono text-sm font-semibold text-primary">Positive terms</h3><p className="mb-3 font-mono text-xs text-muted-foreground">{(rules as unknown as { findingsUI: { protectionExplanation: string } }).findingsUI.protectionExplanation}</p><FindingList findings={context.protections} context={context} positive onEvidenceSelect={onEvidenceSelect} /></div>}
   </TerminalCard>;
 }
 

@@ -1,4 +1,5 @@
 import rules from "@/data/analysisRules.json";
+import scheduleRules from "@/data/scheduleRules.json";
 
 export interface CatalogAlias {
   canonical: string;
@@ -140,6 +141,28 @@ export function applyCatalogAliases(document: NormalizedDocument, aliases: Catal
     .map((match) => ({ ...match, replacement: match.canonical })));
 }
 
+/** Canonicalize punctuation only when it determines an unambiguous decimal/grouping layout. */
+export function normalizeNumericLiteral(raw: string, options: { money?: boolean; decimalCurrency?: boolean; rate?: boolean } = {}): string | null {
+  if (!/^\d+(?:[.,]\d+)*$/.test(raw)) return null;
+  const comma = raw.lastIndexOf(",");
+  const dot = raw.lastIndexOf(".");
+  const maxDecimals = scheduleRules.numericFormatting.decimalCommaMaximumPlaces;
+  if (comma >= 0 && dot >= 0) {
+    const decimal = comma > dot ? "," : ".";
+    const grouping = decimal === "," ? "." : ",";
+    const [integer, fraction, extra] = raw.split(decimal);
+    if (extra !== undefined || !fraction || !new RegExp(`^\\d{1,3}(?:\\${grouping}\\d{3})+$`).test(integer)) return null;
+    return `${integer.split(grouping).join("")}.${fraction}`;
+  }
+  if (comma >= 0) {
+    if (/^\d{1,3}(?:,\d{3})+$|^\d{1,2}(?:,\d{2})+,\d{3}$/.test(raw) && !options.rate) return raw;
+    if (raw.indexOf(",") === comma && (raw.length - comma - 1 <= maxDecimals || options.rate)) return raw.replace(",", ".");
+    return null;
+  }
+  if (dot >= 0 && /^\d{1,3}(?:\.\d{3})+$/.test(raw) && (options.decimalCurrency || raw.indexOf(".") !== dot) && !options.rate) return raw.replace(/\./g, "");
+  return raw.indexOf(".") === dot ? raw : null;
+}
+
 /** Repair OCR only where currency, labels, or units establish a numeric context. */
 export function normalizeDocument(originalText: string, options?: TextNormalizationConfig): NormalizedDocument {
   const config = options ?? (rules as { textNormalization?: TextNormalizationConfig }).textNormalization ?? {};
@@ -149,6 +172,7 @@ export function normalizeDocument(originalText: string, options?: TextNormalizat
     document = replaceMatches(document, new RegExp(join.pattern, "gi"), (match) => match[0].replace(new RegExp(join.pattern, "i"), join.replacement));
   }
   document = replaceMatches(document, /(?:\.[ \t]*){2,}|…+/g, () => " ");
+  document = replaceMatches(document, new RegExp(scheduleRules.numericFormatting.apostropheGroupingPattern, "g"), () => "");
   const currencyPattern = config.numericContext?.currencyPattern ?? String.raw`US\$|C\$|A\$|S\$|\$|₹|€|£|¥|\b(?:USD|INR|EUR|GBP|JPY|CAD|AUD|SGD|AED|Rs\.?)`;
   const unitPattern = config.numericContext?.unitPattern ?? config.unitPattern ?? String.raw`%|years?\b|yrs?\b|months?\b|mos?\b|weeks?\b|days?\b|hours?\b|fortnights?\b|thousand\b|million\b|lakh\b|crore\b|APR\b`;
   const labelPattern = config.numericContext?.labelPattern;
@@ -157,27 +181,46 @@ export function normalizeDocument(originalText: string, options?: TextNormalizat
   const labelBefore = labelPattern ? new RegExp(`\\b(?:${labelPattern})\\b(?:[ \\t]*(?:is|of))?[ \\t:=$-]*$`, "i") : null;
   const edits: Edit[] = [];
   const numericToken = /(?<![\p{L}\p{N}])[\dOlI]+(?:[ \t]*[,.][ \t]*[\dOlI]+|[ \t]+[\dOlI]+)*(?![\p{L}\p{N}])/gu;
-  for (const match of document.text.matchAll(numericToken)) {
-    const start = match.index!;
-    const end = start + match[0].length;
+  const repair = (raw: string, start: number) => {
+    const end = start + raw.length;
     const beforeWindow = document.text.slice(Math.max(0, start - 90), start);
     const before = beforeWindow.split(/\r?\n/).pop() ?? "";
     const after = document.text.slice(end, end + 45);
     const hasContext = currencyBefore.test(beforeWindow) || unitAfter.test(after) || Boolean(labelBefore?.test(before));
-    const hasDigits = /\d/.test(match[0]);
+    const hasDigits = /\d/.test(raw);
     // Punctuation spacing between ordinary digits is unambiguous even without a label.
-    const onlyPunctuationSpacing = hasDigits && !/[OlI]/.test(match[0]) && /[,.]/.test(match[0])
-      && !/\d[ \t]+\d/.test(match[0]);
-    if (!hasContext && !onlyPunctuationSpacing) continue;
+    const onlyPunctuationSpacing = hasDigits && !/[OlI]/.test(raw) && /[,.]/.test(raw)
+      && !/\d[ \t]+\d/.test(raw);
+    const compactPunctuation = raw.replace(/[ \t]*([,.])[ \t]*/g, "$1");
+    const digitsOnly = compactPunctuation.replace(/O/g, "0").replace(/[lI]/g, "1");
+    const canJoinWhitespace = hasContext && !/\t| {2,}/.test(compactPunctuation)
+      && (new RegExp(scheduleRules.numericFormatting.groupedSpacePattern).test(digitsOnly)
+        || new RegExp(scheduleRules.numericFormatting.spacedDigitPattern).test(digitsOnly));
+    // Multiple columns/amounts are never a single number, even on a row labeled Amount.
+    if (/[ \t]/.test(compactPunctuation) && !canJoinWhitespace) {
+      for (const token of raw.matchAll(/[\dOlI]+(?:[ \t]*[,.][ \t]*[\dOlI]+)*/g)) repair(token[0], start + token.index!);
+      return;
+    }
+    if (!hasContext && !onlyPunctuationSpacing) return;
     const sourceIndices: number[] = [];
     let replacement = "";
-    for (let index = 0; index < match[0].length; index++) {
-      const character = match[0][index];
+    for (let index = 0; index < raw.length; index++) {
+      const character = raw[index];
       if (/[ \t]/.test(character)) continue;
       replacement += hasContext ? character.replace(/O/g, "0").replace(/[lI]/g, "1") : character;
       sourceIndices.push(start + index);
     }
-    if (replacement !== match[0]) edits.push({ start, end, replacement, sourceIndices });
+    const canonical = normalizeNumericLiteral(replacement, {
+      money: currencyBefore.test(beforeWindow) || new RegExp(scheduleRules.numericFormatting.moneyContextPattern, "i").test(before),
+      decimalCurrency: new RegExp(scheduleRules.numericFormatting.decimalCurrencyPattern, "i").test(beforeWindow),
+      rate: /^\s*(?:%|percent\b)/i.test(after),
+    });
+    if (canonical !== null && canonical !== replacement) {
+      edits.push({ start, end, replacement: canonical });
+    } else if (replacement !== raw) edits.push({ start, end, replacement, sourceIndices });
+  };
+  for (const match of document.text.matchAll(numericToken)) {
+    repair(match[0], match.index!);
   }
   document = applyEdits(document, edits);
   // Keeping symbol and number together also repairs line wrapping after a currency token.

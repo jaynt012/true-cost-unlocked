@@ -1,0 +1,42 @@
+[
+  {
+    "name": "clean installment loan",
+    "text": "PERSONAL INSTALLMENT LOAN AGREEMENT\nLoan amount: $12,000\nFixed APR: 8%\nRepayment term: 36 months\nNo origination fee.\nWe do not charge a prepayment penalty.\nAnnual fee: none.\nNo hidden fees.\nLate fee is $0 during the first 30 days.\nThe rate will not change.\nYou may cancel within 14 days without cost.",
+    "expected": {"principal": 12000, "rate": 8, "term": 36, "payment": null, "docType": "installment_loan", "band": "low"}
+  },
+  {
+    "name": "legal-style installment loan",
+    "text": "LOAN AGREEMENT\n1. Definitions\nThe loan principal is $18,000 (the \"Principal\").\n2. Repayment\nAPR: 9.9%.\nTerm: 36 months.\nMonthly EMI: $579.96.\n3. Fees\nDocumentation fee: 4% of the Principal, deducted from loan proceeds.\nLate charge: 8% of each installment after 5 days overdue.\n4. Default and remedies\nAny payment default is a default under this agreement.\nA default under another agreement is a cross-default.\nUpon default, the lender may accelerate the entire balance and make all amounts immediately due.\nUpon default, the lender may repossess collateral without prior notice.\n5. Changes\nThe lender may, in its sole discretion, increase the APR or change other terms.\n6. Disputes and collateral\nThe borrower waives the right to a jury trial and to participate in a class action.\nAll disputes must be resolved by binding arbitration.\nThe security interest extends to after-acquired property.",
+    "expected": {"principal": 18000, "rate": 9.9, "term": 36, "payment": 579.96, "docType": "installment_loan", "band": "critical"}
+  },
+  {
+    "name": "revolving credit",
+    "text": "CREDIT CARD AGREEMENT\nThis is revolving credit.\nPurchase APR: 21.9% per year.\nMinimum payment: $25 or 3% of the outstanding balance, whichever is greater.",
+    "expected": {"principal": null, "rate": 21.9, "term": null, "payment": null, "docType": "credit_card", "band": "caution"}
+  },
+  {
+    "name": "merchant cash advance",
+    "text": "MERCHANT CASH ADVANCE AGREEMENT\nAdvance amount: $24,000.\nPurchased amount: $30,000.\nFactor rate: 1.25.\nDaily remittance: $250 from future receivables until the purchased amount is collected.",
+    "expected": {"principal": 24000, "rate": 140.2, "term": null, "payment": 250, "docType": "merchant_cash_advance", "band": "high"}
+  },
+  {
+    "name": "BNPL agreement with conditional APR",
+    "text": "BUY NOW PAY LATER AGREEMENT - SHOPEASY PAY\n\nPurchase Amount: $1,200\nPay in 4 interest-free installments of $300 every 2 weeks!\nNO INTEREST. NO FEES. 100% FREE!*\n\n*Deferred interest applies. If the balance is not paid in full by the end of the promotional period, interest will be charged retroactively from the purchase date at 36% APR.\nConvenience fee: $7.99 per installment.\nMissed installment fee: $35, plus a rescheduling fee of $15.\nPayment Protection Plan: $12/month, automatically added unless you opt out in writing within 24 hours.\nBy accepting, you waive your right to join a class action and agree to binding arbitration.\nWe may report missed payments to credit bureaus and share your data with partners.",
+    "expected": {"principal": 1200, "rate": 36, "term": 1.85, "payment": 300, "docType": "bnpl"}
+  },
+  {
+    "name": "Round 5 Test 11 advance-fee scam",
+    "text": "CONGRATULATIONS! YOU ARE PRE-APPROVED FOR A $15,000 LOAN!\n\nNo credit check. 100% guaranteed approval. No documents needed.\nTo release your funds, pay a refundable processing deposit of $350 via gift cards or cryptocurrency.\nOffer expires in 2 hours! Contact our agent on WhatsApp only.\nDo not discuss this offer with your bank.",
+    "expected": {"principal": 15000, "rate": null, "term": null, "payment": null, "docType": "advance_fee_scam", "band": "critical"}
+  },
+  {
+    "name": "Round 5 Test 14 repaired loan disclosure",
+    "text": "LOAN   AGREEMENT\n0rigination  Fee .......... 3 %\nPRINCIPAL AMT:   $ 15 , 000\nINTEREST ( APR )  :  11.5  %\nTERM  :  3 6  MONTHS\nLATE FEE: $ 25",
+    "expected": {"principal": 15000, "rate": 11.5, "term": 36, "payment": null, "docType": "installment_loan"}
+  },
+  {
+    "name": "advance-fee scam",
+    "text": "CONGRATULATIONS! YOU ARE PRE-APPROVED FOR A LOAN!\nNo credit check. 100% guaranteed approval.\nTo release your funds, pay a refundable processing deposit of $350 via gift cards or cryptocurrency.\nOffer expires in 2 hours! Contact our agent on WhatsApp only.\nDo not discuss this offer with your bank.",
+    "expected": {"principal": null, "rate": null, "term": null, "payment": null, "docType": "advance_fee_scam", "band": "critical"}
+  }
+]

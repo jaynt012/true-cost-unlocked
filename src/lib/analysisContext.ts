@@ -50,7 +50,12 @@ export interface AmountRelationship {
 
 export type DocumentType =
   | "installment_loan" | "bnpl" | "auto_loan" | "mortgage" | "credit_card"
-  | "payday" | "rent_to_own" | "gold_loan" | "subscription" | "advance_fee_scam" | "unknown";
+  | "payday" | "rent_to_own" | "gold_loan" | "subscription" | "advance_fee_scam"
+  | "merchant_cash_advance" | "personal_loan_kfs" | "student_loan" | "unknown";
+
+export interface SourceBoundingBox { x: number; y: number; width: number; height: number }
+export interface SourceTextSpan { start: number; end: number; page: number; box: SourceBoundingBox }
+export interface ImportedSourcePage { page: number; confidence: number; isOCR: boolean }
 
 export interface ExtractedCandidate<T = number> {
   value: T;
@@ -59,6 +64,7 @@ export interface ExtractedCandidate<T = number> {
   position: number;
   confidence: number;
   score: number;
+  relatedItems?: string[];
 }
 
 export interface ExtractedField<T = number> {
@@ -68,6 +74,9 @@ export interface ExtractedField<T = number> {
   alternatives: ExtractedCandidate<T>[];
   needsReview: boolean;
 }
+
+export interface AIExtractedFact { value: number | null; evidence: string | null }
+export interface AIExtractedFields { principal: AIExtractedFact; annualAPR: AIExtractedFact; termMonths: AIExtractedFact; payment: AIExtractedFact }
 
 export type FindingPolarity = "asserted" | "negated" | "waived/zero" | "conditional" | "hypothetical";
 export type FactProvenance = "stated-in-document" | "computed" | "derived" | "assumed";
@@ -108,6 +117,7 @@ export interface CostFinding {
   /** Individual monetary facts retained when several detectors describe one clause. */
   components?: CostFinding[];
   ruleOnly?: boolean;
+  sourceLocation?: { page: number; box: SourceBoundingBox };
 }
 
 export interface AnalysisFinding extends CostFinding {
@@ -197,6 +207,7 @@ export interface AnalysisContext {
   readonly principal: number | null;
   readonly findings: AnalysisFinding[];
   readonly protections: AnalysisFinding[];
+  readonly conditionalTerms?: AnalysisFinding[];
   readonly rateScenarios?: Array<{ type: "variable" | "introductory" | "penalty"; annualRate: number; source: string; conditions: string[]; provenance: FactProvenance }>;
   readonly fees: CostFinding[];
   readonly addOns: CostFinding[];
@@ -251,6 +262,8 @@ export interface AnalysisContext {
     conditions?: string[];
   };
   readonly rawText: string;
+  readonly sourcePages?: ImportedSourcePage[];
+  readonly sourceSpans?: SourceTextSpan[];
 }
 
 export type AnalysisResult = AnalysisContext;

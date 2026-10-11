@@ -30,3 +30,8 @@ dist-ssr
 # Temporary test files
 check-*.js
 test*.ts
+/tests/heldout/*.json
+/tests/heldout/*.pdf
+/tests/heldout/*.png
+/tests/heldout/*.jpg
+/tests/heldout/*.jpeg

@@ -1,7 +1,8 @@
 import rules from "@/data/analysisRules.json";
+import extractionRules from "@/data/extractionRules.json";
 import { calculateEMI, normalizeDuration, parseAmount, parseTimeUnit, toAnnualRate, type ParsedDuration, type TimeUnit } from "./financial";
 import type { AnalysisFinding, AmountRelationship, CostFinding, DetectedClaim, DocumentType, ExtractedCandidate, ExtractedField, FindingPolarity, LineItemGroup, RiskBand, RiskBreakdownItem } from "./analysisContext";
-import { scoreRiskFindings } from "./riskScoring";
+import { riskBandForScore, scoreRiskFindings } from "./riskScoring";
 
 type LabelRule = { id: string; pattern: string; score: number; kind: "principal" | "price" | "exclude"; position?: "before" | "after" };
 type DocumentRule = { id: DocumentType; label: string; signals: Array<{ pattern: string; weight: number }> };
@@ -19,6 +20,8 @@ export interface ParsedRateCandidate {
   end: number;
   source: string;
   assumption: string | null;
+  /** A range endpoint is evidence, never an individually agreed rate. */
+  ambiguous?: boolean;
 }
 export interface ParsedMonetaryValue {
   amount: number | null;
@@ -33,7 +36,7 @@ export interface ParsedMonetaryValue {
 const config = rules as {
   polarity: { negators: string[]; zeroPatterns: string[]; scopeBreaks: string[]; nonNegatingPatterns: string[]; conditionalPatterns: string[]; hypotheticalPatterns: string[]; conditionPattern: string; laterAmountPattern: string };
   scenarioPeriods: { gracePattern: string; daysPerUnit: Record<string, number> };
-  protectionCatalog: Array<{ id: string; label: string; pattern: string; explanation: string; acceptedPolarities: string[]; disallowedPatterns?: string[] }>;
+  protectionCatalog: Array<{ id: string; label: string; pattern: string; explanation: string; acceptedPolarities: string[]; disallowedPatterns?: string[]; feeRuleId?: string }>;
   rateAttributes: { types: Array<{ type: ParsedRateCandidate["type"]; pattern: string; acceptedPolarities?: string[] }>; flatPattern: string; reducingPattern: string; aprPattern: string; flatPricingProducts: string[] };
   segmentation: { abbreviations: string[]; headingPatterns?: string[] };
   monetaryBases: Array<{ id: string; pattern: string }>;
@@ -53,9 +56,9 @@ const config = rules as {
   glossary: Array<{ id: string; term: string; pattern: string; definition: string }>;
 };
 
-const CURRENCY_TOKEN = String.raw`US\$|C\$|A\$|S\$|\$|₹|€|£|¥|\bINR\b|\bUSD\b|\bEUR\b|\bGBP\b|\bCAD\b|\bAUD\b|\bSGD\b|\bAED\b|\bRs\.?`;
+const CURRENCY_TOKEN = String.raw`US\$|C\$|A\$|S\$|\$|₹|€|£|¥|\bINR\b|\bUSD\b|\bEUR\b|\bGBP\b|\bJPY\b|\bCAD\b|\bAUD\b|\bSGD\b|\bAED\b|\bRs\.?`;
 const NUMBER_TOKEN = String.raw`(?:\d{1,3}(?:,\d{2,3})+|\d+)(?:\.\d+)?`;
-const MONEY_TOKEN = String.raw`(?<currency>${CURRENCY_TOKEN})?\s*(?<amount>${NUMBER_TOKEN})(?:\s*(?<unit>thousand|million|billion|lakh|lac|crore|k)\b)?(?!\s*%)`;
+const MONEY_TOKEN = String.raw`(?:(?<currency>${CURRENCY_TOKEN})\s*)?(?<amount>${NUMBER_TOKEN})(?:[ \t]*(?<unit>thousand|million|billion|lakh|lac|crore|k)\b)?(?:[ \t]*(?<currencySuffix>${CURRENCY_TOKEN}))?`;
 const MULTIPLIERS: Record<string, number> = { thousand: 1e3, k: 1e3, million: 1e6, billion: 1e9, lakh: 1e5, lac: 1e5, crore: 1e7 };
 
 const CURRENCY_CODES: Record<string, string> = { "₹": "INR", INR: "INR", "Rs": "INR", "Rs.": "INR", "€": "EUR", EUR: "EUR", "£": "GBP", GBP: "GBP", "¥": "JPY", JPY: "JPY", "C$": "CAD", CAD: "CAD", "A$": "AUD", AUD: "AUD", "S$": "SGD", SGD: "SGD", AED: "AED", USD: "USD", "US$": "USD", "$": "USD" };
@@ -64,20 +67,36 @@ function isCompleteMoneyMatch(text: string, match: RegExpMatchArray): boolean {
   if (match.index === undefined || !match.groups?.amount) return false;
   const start = text.indexOf(match.groups.amount, match.index);
   const end = match.index + match[0].length;
-  const before = text[start - 1] ?? "";
+  const before = text[match.index - 1] ?? "";
   const after = text[end] ?? "";
-  if (/\d/.test(before) || /\d/.test(after) || (after === "," && /\d/.test(text[end + 1] ?? ""))
+  if (/[\p{L}\p{N}]/u.test(before) || /[\p{L}\p{N}]/u.test(after) || (after === "," && /\d/.test(text[end + 1] ?? ""))
     || (after === "." && /\d/.test(text[end + 1] ?? ""))) return false;
-  if (/^\s*%/.test(text.slice(end, end + 4))) return false;
+  if (new RegExp(extractionRules.percentSuffixPattern, "i").test(text.slice(end, end + 18))) return false;
   // A number attached to a count/time noun stays a quantity even if the clause
   // also contains currency elsewhere (for example, "36 monthly installments").
-  if (/^[ \t]*(?:(?:monthly|weekly|daily|annual|yearly|equal|scheduled|consecutive|remaining|total)[ \t]+){0,3}(?:years?|yrs?|months?|mos?|weeks?|days?|fortnights?|times?|payments?|installments?|instalments?|emis?)\b/i.test(text.slice(end, end + 60))) return false;
-  if (match.groups.currency) return true;
-  const clauseStart = Math.max(text.lastIndexOf("\n", start - 1), text.lastIndexOf(";", start - 1), text.lastIndexOf(".", start - 1), text.lastIndexOf("!", start - 1), text.lastIndexOf("?", start - 1)) + 1;
-  const prefix = text.slice(clauseStart, start);
-  const hasMoneyLabel = /\b(?:principal|loan(?:\s+amount)?|amount\s+financed|amount\s+borrowed|advance|credit|(?:processing|origination|convenience|late|missed|rescheduling|document|doc|service|transaction|annual|prepayment)?\s*fees?|(?:processing|origination|convenience|late|missed|rescheduling|documentation|document|doc|service|transaction|annual|prepayment)(?:\s+(?:fee|charge))?|charges?|deposit|price|cost|payment\s+amount|monthly\s+payment|monthly\s+emi|emi)\b[^\d%]{0,45}$/i.test(prefix);
+  if (new RegExp(extractionRules.quantitySuffixPattern, "i").test(text.slice(end, end + 80))) return false;
+  if (match.groups.currency || match.groups.currencySuffix) return true;
+  const clause = numericClauseAt(text, start);
+  const prefix = text.slice(clause.start, start);
+  const hasMoneyLabel = new RegExp(extractionRules.moneyLabelPattern, "i").test(prefix);
   if (!hasMoneyLabel) return false;
   return true;
+}
+
+/** Include a preceding label-only table row without borrowing context from a neighboring numeric field. */
+export function numericClauseAt(text: string, position: number): Clause {
+  const clause = clauseAt(text, position);
+  const lineStart = text.lastIndexOf("\n", position - 1) + 1;
+  if (text.slice(lineStart, position).trim() && !new RegExp(`^(?:${CURRENCY_TOKEN})\\s*$`, "i").test(text.slice(lineStart, position).trim())) return clause;
+  const previousEnd = lineStart > 0 ? lineStart - 1 : 0;
+  const previousStart = text.lastIndexOf("\n", previousEnd - 1) + 1;
+  const previous = text.slice(previousStart, previousEnd).trim();
+  if (!previous || /\d/.test(previous) || previous.length > extractionRules.labelContextDistance) return clause;
+  const isLabel = config.principalLabels.some((rule) => new RegExp(rule.pattern, "i").test(previous))
+    || config.rateRoleRules?.some((rule) => new RegExp(rule.pattern, "i").test(previous));
+  if (!isLabel) return clause;
+  const start = previousStart + text.slice(previousStart, previousEnd).search(/\S/);
+  return { text: text.slice(start, clause.end), start, end: clause.end };
 }
 
 function sentenceBoundary(text: string, index: number): boolean {
@@ -163,7 +182,7 @@ export function parseMonetaryValues(text: string, baseOffset = 0): ParsedMonetar
     if (amount === null) continue;
     const unit = g.unit?.toLowerCase();
     const parsed = amount * (unit ? MULTIPLIERS[unit] ?? 1 : 1);
-    const token = g.currency?.trim() ?? "";
+    const token = (g.currency ?? g.currencySuffix)?.trim() ?? "";
     const composite = /^\s*\+\s*(\d+(?:\.\d+)?)\s*%\s*(?:gst|vat|hst|pst|tax|sales\s+tax)\b/i.exec(text.slice(match.index! + match[0].length));
     values.push({
       amount: parsed,
@@ -194,35 +213,75 @@ export function extractRateType(text: string): ParsedRateCandidate["type"] {
   return "unspecified";
 }
 
+/** Associate each percentage with its nearest label without crossing another percentage. */
+function rateContext(text: string, start: number, end: number, clause: Clause): { role: RateRole | null; context: string } {
+  const earlier = Array.from(text.slice(clause.start, start).matchAll(/\d+(?:\.\d+)?\s*(?:%|percent\b|per\s+cent\b)/gi)).slice(-1)[0];
+  const later = /\d+(?:\.\d+)?\s*(?:%|percent\b|per\s+cent\b)/i.exec(text.slice(end, clause.end));
+  const from = earlier ? clause.start + earlier.index! + earlier[0].length : clause.start;
+  const to = later ? end + later.index : clause.end;
+  const before = text.slice(Math.max(from, start - extractionRules.rateContextDistance), start);
+  const after = text.slice(end, Math.min(to, end + extractionRules.rateContextDistance));
+  const labels = (config.rateRoleRules ?? []).flatMap((rule, priority) => {
+    const preceding = Array.from(before.matchAll(new RegExp(rule.pattern, "gi"))).map((match) => ({
+      role: rule.role, priority, distance: before.length - match.index! - match[0].length, before: true,
+      at: match.index!, length: match[0].length,
+    }));
+    const following = Array.from(after.matchAll(new RegExp(rule.pattern, "gi"))).filter((match) =>
+      !new RegExp(extractionRules.rateContextBreakPattern, "i").test(after.slice(0, match.index))).map((match) => ({
+      role: rule.role, priority, distance: match.index!, before: false, at: match.index!, length: match[0].length,
+    }));
+    return [...preceding, ...following];
+  }).sort((a, b) => a.distance - b.distance || a.priority - b.priority);
+  let selected = labels[0];
+  // A modifier such as "introductory APR" applies to its adjacent base label.
+  if (selected?.role === "base") {
+    const modifier = labels.find((item) => item.before === selected.before && ["promotional", "penalty"].includes(item.role)
+      && (item.before ? item.at + item.length <= selected.at && /^[\s-]*$/.test(before.slice(item.at + item.length, selected.at))
+        : item.at >= selected.at + selected.length && /^[\s-]*$/.test(after.slice(selected.at + selected.length, item.at))));
+    if (modifier) selected = modifier;
+  }
+  const context = `${before}${text.slice(start, end)}${after.split(new RegExp(extractionRules.rateContextBreakPattern, "i"))[0]}`;
+  const role = selected?.role ?? (new RegExp(extractionRules.rateCurrentPattern, "i").test(before) ? "base" : null);
+  return { role, context };
+}
+
+/** Keep both endpoints for review; neither endpoint is a unique contractual value. */
+function isNumericRange(text: string, start: number, end: number): boolean {
+  const boundary = segmentClauses(text).find((item) => item.start <= start && start < item.end);
+  const before = text.slice(boundary?.start ?? 0, start);
+  const after = text.slice(end, boundary?.end ?? text.length);
+  const previous = Array.from(before.matchAll(/\d+(?:[,.]\d+)*\s*(?:%|percent\b|per\s+cent\b)?/gi)).slice(-1)[0];
+  const next = /(?:(?:US\$|C\$|A\$|S\$|[$₹€£¥]|USD|INR|EUR|GBP)\s*)?\d+(?:[,.]\d+)*/i.exec(after);
+  const connector = new RegExp(extractionRules.rangeConnectorPattern, "i");
+  return Boolean(previous && connector.test(before.slice(previous.index! + previous[0].length))
+    || next && connector.test(after.slice(0, next.index)));
+}
+
 export function extractRateCandidates(text: string): ParsedRateCandidate[] {
-  const clauses = segmentClauses(text);
-  const matches = Array.from(text.matchAll(/(?<value>\d+(?:\.\d+)?)\s*%(?!\s*(?:gst|vat|hst|pst|tax)\b)/gi));
+  const matches = Array.from(text.matchAll(/(?<![\d.])(?<value>\d+(?:\.\d+)?)\s*(?:%|percent\b|per\s+cent\b)/gi));
   const candidates: ParsedRateCandidate[] = [];
-  const roleRules = config.rateRoleRules ?? [];
   for (const match of matches) {
     if (match.index === undefined || !match.groups?.value) continue;
     const start = match.index;
     const end = start + match[0].length;
-    const clauseIndex = clauses.findIndex((clause) => clause.start <= start && start < clause.end);
-    const clause = clauses[clauseIndex] ?? { text: text.slice(start), start, end: text.length };
+    const clause = numericClauseAt(text, start);
     // Only denial preceding the numeric rate suppresses it; a promise that the
     // rate will not change after the number does not deny the stated rate.
     const ratePolarity = classifyPolarity(clause.text.slice(0, end - clause.start), start - clause.start, end - clause.start);
     if (ratePolarity === "negated" || ratePolarity === "hypothetical") continue;
-    const neighboring = [clauses[clauseIndex - 1], clause, clauses[clauseIndex + 1]]
-      .filter((item): item is Clause => Boolean(item) && (item!.start === clause.start || Math.abs(item!.start - clause.start) <= 2 || Math.abs(item!.end - clause.end) <= 2));
-    const context = neighboring.map((item) => item.text).join(" ");
-    const roleRule = roleRules.find((rule) => new RegExp(rule.pattern, "i").test(context));
-    if (!roleRule) continue;
+    const { role, context } = rateContext(text, start, end, clause);
+    if (!role) continue;
 
     const statedValue = Number(match.groups.value);
     if (!Number.isFinite(statedValue) || statedValue < 0) continue;
-    const after = text.slice(end, Math.min(text.length, end + 45));
-    const before = text.slice(Math.max(0, start - 45), start);
-    const isAPR = new RegExp(config.rateAttributes.aprPattern, "i").test(clause.text);
-    const periodMatch = isAPR ? null : /(?:per|each|\/)\s*(day|week|fortnight|month|year)s?\b|\b(daily|weekly|fortnightly|monthly|annually|yearly)\b|\bp\.?a\.?\b/i.exec(after)
-      ?? /\b(daily|weekly|fortnightly|monthly|annually|yearly)\s+(?:rate|interest)\b/i.exec(before);
-    const periodLabel = periodMatch?.[1] ?? periodMatch?.[2] ?? "year";
+    const after = text.slice(end, Math.min(clause.end, end + 65));
+    const before = text.slice(Math.max(clause.start, start - 65), start);
+    // Prime plus X% is a margin over an unstated index, not a complete APR.
+    if (new RegExp(extractionRules.rateMarginPattern, "i").test(before)) continue;
+    const isAPR = new RegExp(config.rateAttributes.aprPattern, "i").test(context);
+    const periodMatch = isAPR ? null : new RegExp(extractionRules.ratePeriodAfterPattern, "i").exec(after)
+      ?? new RegExp(extractionRules.ratePeriodBeforePattern, "i").exec(before);
+    const periodLabel = periodMatch?.slice(1).find(Boolean) ?? "year";
     const period = parseTimeUnit(periodLabel) ?? "year";
     const attributes = config.rateAttributes;
     const basis: ParsedRateCandidate["basis"] = new RegExp(attributes.flatPattern, "i").test(context)
@@ -243,11 +302,12 @@ export function extractRateCandidates(text: string): ParsedRateCandidate[] {
       period,
       basis,
       type,
-      role: roleRule.role,
+      role,
       start,
       end,
       source: clause.text,
       assumption,
+      ambiguous: isNumericRange(text, start, end) || undefined,
     });
   }
   return candidates;
@@ -311,7 +371,7 @@ function matches(pattern: string, text: string): RegExpMatchArray[] {
 }
 
 function labelForCandidate(text: string, position: number, end: number): { rule: LabelRule | null; label: string; score: number } {
-  const clause = clauseAt(text, position);
+  const clause = numericClauseAt(text, position);
   const region = text.slice(clause.start, position);
   const found: Array<{ rule: LabelRule; at: number; label: string }> = [];
   for (const rule of config.principalLabels) {
@@ -346,7 +406,7 @@ export function extractAmountCandidates(text: string): ExtractedCandidate[] {
     candidates.push({
       value: scaledValue,
       label,
-      source: clauseAt(text, position).text,
+      source: numericClauseAt(text, position).text,
       position,
       confidence: score >= 120 ? 0.98 : score >= 60 ? 0.78 : score < 0 ? 0.05 : 0.25,
       score,
@@ -362,7 +422,7 @@ export function classifyDocument(text: string): { type: DocumentType; label: str
   }).sort((a, b) => b.score - a.score);
   const best = ranked[0];
   const runnerUp = ranked[1]?.score ?? 0;
-  if (!best || best.score < 3) return { type: "unknown", label: "Unclassified financial document", confidence: 0.2, signals: [] };
+  if (!best || best.score < 3) return { type: "unknown", label: "Unrecognized (generic review)", confidence: 0.2, signals: [] };
   const confidence = Math.min(0.99, 0.55 + best.score * 0.03 + Math.max(0, best.score - runnerUp) * 0.025);
   return { type: best.rule.id, label: best.rule.label, confidence, signals: best.signals };
 }
@@ -374,12 +434,14 @@ export function resolvePrincipal(
   statedEMI: number | null,
   docType: DocumentType,
 ): ExtractedField<number> {
+  if (docType === "credit_card") return { value: null, source: null, confidence: 0, alternatives: [], needsReview: false };
   let ranked = candidates.filter((candidate) => candidate.score > 0);
   let emiMatched = false;
   if (statedEMI && rate !== null && durationMonths) {
     ranked = ranked.map((candidate) => {
       const calculated = calculateEMI(candidate.value, rate, durationMonths);
-      const matchesEMI = calculated && Math.abs(calculated.emi - statedEMI) / statedEMI <= 0.1;
+      const tolerance = (config as unknown as { constraintResolution?: { paymentTolerance?: number } }).constraintResolution?.paymentTolerance ?? 0.02;
+      const matchesEMI = calculated && Math.abs(calculated.emi - statedEMI) / statedEMI <= tolerance;
       if (matchesEMI) emiMatched = true;
       return matchesEMI ? { ...candidate, score: candidate.score + 120, confidence: 0.99 } : candidate;
     });
@@ -396,18 +458,23 @@ export function resolvePrincipal(
 }
 
 export function extractStatedEMI(text: string, candidates = extractAmountCandidates(text)): ExtractedField<number> {
-  const eligible = candidates.filter((candidate) => /\bemi\b|monthly\s+(?:payment|installment|instalment)|payment\s+amount/i.test(candidate.label + " " + candidate.source));
-  const best = eligible[0];
-  if (best) return { value: best.value, source: best.source, confidence: 0.9, alternatives: eligible, needsReview: false };
-  const schedule = text.match(/\b(?:pay\s+in\s+)?\d+\s+(?:(?:interest[- ]free|equal|fixed)\s+)?installments?\s+of\s+(?<currency>US\$|C\$|A\$|S\$|\$|₹|€|£|¥|INR\s*|USD\s*|EUR\s*|GBP\s*|Rs\.?\s*)(?<amount>\d{1,3}(?:,\d{2,3})+|\d+)(?:\.(?<decimal>\d+))?/i);
-  if (schedule) {
-    const value = parseAmount(`${schedule.groups?.amount}${schedule.groups?.decimal ? `.${schedule.groups.decimal}` : ""}`);
-    if (value !== null) {
-      const candidate = { value, label: "installment amount", source: schedule[0], position: schedule.index ?? 0, confidence: 0.85, score: 0 };
-      return { value, source: schedule[0], confidence: 0.85, alternatives: [candidate], needsReview: false };
-    }
-  }
-  return { value: null, source: null, confidence: 0, alternatives: [], needsReview: false };
+  const eligible = candidates.filter((candidate) => {
+    const clause = numericClauseAt(text, candidate.position);
+    const before = text.slice(clause.start, candidate.position);
+    // Inspect the candidate's own label. A principal sharing a payment clause is not an installment.
+    const labelMatches = Array.from(before.matchAll(new RegExp(extractionRules.paymentLabelPattern, "gi")));
+    const nearest = labelMatches.slice(-1)[0];
+    const ownPaymentLabel = new RegExp(extractionRules.paymentLabelPattern, "i").test(candidate.label);
+    const contextualPayment = Boolean(nearest && !/[\d%]/.test(before.slice(nearest.index! + nearest[0].length)));
+    if (!ownPaymentLabel && !contextualPayment) return false;
+    const labelContext = nearest ? before.slice(Math.max(0, nearest.index! - 18)) : candidate.label;
+    return !new RegExp(extractionRules.paymentExcludedLabelPattern, "i").test(labelContext);
+  });
+  const distinct = [...new Map(eligible.map((candidate) => [candidate.value, candidate])).values()];
+  const best = distinct[0];
+  const ambiguous = distinct.length > 1 || Boolean(best && isNumericRange(text, best.position, best.position + String(best.value).length));
+  if (!best || ambiguous) return { value: null, source: null, confidence: 0, alternatives: distinct, needsReview: ambiguous };
+  return { value: best.value, source: best.source, confidence: extractionRules.paymentConfidence, alternatives: distinct, needsReview: false };
 }
 
 /** Scope is shared by cost, risk, protection, and warning projections. */
@@ -486,7 +553,7 @@ function detectCostsLegacy(text: string, principal: number | null, installmentCo
               ? "annual"
               : "once";
         const basis = parsed.percent !== null
-          ? /emi/i.test(source) ? "emi" : /balance/i.test(source) ? "balance" : /principal|amount financed/i.test(source) ? "principal" : null
+          ? /emi/i.test(source) ? "emi" : /(?:outstanding|remaining)\s+(?:principal\s+)?balance|outstanding\s+principal|balance/i.test(source) ? "outstanding" : /principal|amount financed/i.test(source) ? "principal" : null
           : null;
         const conditions = source.match(/\b(?:if|unless|when|provided that|only if|after|upon|following)\s+[^.;]+/gi)?.map((value) => value.trim()) ?? [];
         let totalImpact: number | null = parsed.amount;
@@ -499,9 +566,13 @@ function detectCostsLegacy(text: string, principal: number | null, installmentCo
         }
         if (parsed.percent !== null && basis === "principal" && principal !== null) totalImpact = principal * parsed.percent / 100;
         if (parsed.percent !== null && basis === "emi") totalImpact = null;
+        if (parsed.percent !== null && basis === "outstanding" && principal !== null) totalImpact = principal * parsed.percent / 100;
+        const qualifier = basis === "outstanding"
+          ? ((rules as unknown as { costModel?: { outstandingPercentQualifier?: string } }).costModel?.outstandingPercentQualifier ?? "up to")
+          : null;
         findings.push({
           id: item.id, label: item.label, category: item.category, severity: item.severity,
-          amount: parsed.amount, percent: parsed.percent, basis, frequency, conditions,
+          amount: parsed.amount, percent: parsed.percent, basis, frequency, conditions, qualifier,
           source, position: start, explanation: item.explanation, totalImpact: negated ? 0 : totalImpact, negated,
         });
       }
@@ -747,13 +818,40 @@ export function detectCostsGeneric(text: string, principal: number | null, insta
       }, polarity, clause));
     }
   }
-  for (const clause of clauses) {
+  for (let clauseIndex = 0; clauseIndex < clauses.length; clauseIndex++) {
+    const clause = clauses[clauseIndex];
     for (const item of config.protectionCatalog) {
       const match = new RegExp(item.pattern, "i").exec(clause.text);
       if (!match) continue;
       if (item.disallowedPatterns?.some((pattern) => new RegExp(pattern, "i").test(clause.text))) continue;
       const polarity = classifyPolarity(clause.text, match.index, match.index + match[0].length);
       if (!item.acceptedPolarities.includes(polarity)) continue;
+      const laterConfig = (config as unknown as { polarity?: { laterAmountPattern?: string } }).polarity?.laterAmountPattern;
+      const firstAmount = findStructuredAmount(clause.text);
+      const laterAmount = firstAmount ? findStructuredAmount(clause.text, firstAmount.end) : null;
+      const nextClause = clauses[clauseIndex + 1];
+      const nextAmount = nextClause ? findStructuredAmount(nextClause.text) : null;
+      const noChargeClaim = /\bno\s+(?:annual\s+)?fee\b/i.test(clause.text);
+      const nextClauseQualifies = Boolean(nextClause && nextAmount && nextAmount.amount > 0 && laterConfig
+        && new RegExp(laterConfig, "i").test(nextClause.text));
+      const sameClauseQualifies = Boolean(firstAmount?.amount === 0 && laterAmount && laterAmount.amount > 0 && laterConfig
+        && new RegExp(laterConfig, "i").test(clause.text));
+      if ((sameClauseQualifies || (noChargeClaim && nextClauseQualifies)) && laterConfig) {
+        const evidence = nextClauseQualifies ? text.slice(clause.start, nextClause!.end) : clause.text;
+        const evidenceEnd = nextClauseQualifies ? nextClause!.end : clause.end;
+        for (let index = findings.length - 1; index >= 0; index -= 1) {
+          if (findings[index].category === "protection" && /annual\s+fee/i.test(findings[index].label + " " + findings[index].source)
+            && findings[index].source === clause.text) findings.splice(index, 1);
+        }
+        findings.push(canonicalFinding({ id: "conditional_" + item.id, topicId: item.id, label: "Conditional: " + item.label,
+          category: "conditional_term", severity: 0, polarity: "conditional", amount: (laterAmount ?? nextAmount)!.amount, percent: null,
+          basis: null, frequency: null, conditions: evidence.match(new RegExp(config.polarity.conditionPattern, "gi")) ?? [],
+          source: evidence, position: clause.start, clauseSpan: [clause.start, evidenceEnd], evidence,
+          explanation: "The initial protection expires or changes under a later stated charge.", totalImpact: null, negated: false, amountNotStated: false }));
+        continue;
+      }
+      if (item.feeRuleId && findings.some((finding) => finding.category === "protection"
+        && finding.topicId === item.feeRuleId && finding.source === clause.text)) continue;
       if (findings.some((finding) => finding.category === "protection" && finding.id === item.id)) continue;
       findings.push(canonicalFinding({ id: item.id, topicId: item.id, label: item.label, category: "protection", severity: 0,
         polarity, amount: null, percent: null, basis: null, frequency: null,
@@ -925,7 +1023,16 @@ export function collectRuleFindings(text: string, findings: CostFinding[], docTy
 export function calculateRisk(text: string, docType: DocumentType, findings: CostFinding[], claims: DetectedClaim[], confidence: number, rateConfirmed = true, incompleteAnalysis = false, rulesMaterialized = false): { score: number; band: RiskBand; breakdown: RiskBreakdownItem[]; analysisIncomplete: boolean } {
   const scored = rulesMaterialized ? findings : collectRuleFindings(text, findings, docType, claims, rateConfirmed);
   const risk = scoreRiskFindings(scored);
-  return { score: risk.score, band: risk.band, breakdown: risk.breakdown,
+  const typeFloor = Number((rules as unknown as { documentTypeScoreFloors?: Partial<Record<DocumentType, number>> }).documentTypeScoreFloors?.[docType] ?? 0);
+  const score = Math.min(100, Math.max(risk.score, typeFloor));
+  const breakdown = [...risk.breakdown];
+  if (typeFloor > risk.score) {
+    const previous = risk.score / 100;
+    const weight = (typeFloor / 100 - previous) / Math.max(0.0001, 1 - previous);
+    breakdown.push({ category: "document_type_floor", points: weight * 100, weight, baseWeight: weight, repeatFactor: 1,
+      reasons: [`Configured ${docType.replace(/_/g, " ")} calibration floor: ${typeFloor}.`], combinedScore: typeFloor });
+  }
+  return { score, band: riskBandForScore(score), breakdown,
     analysisIncomplete: incompleteAnalysis || confidence < config.analysisConfidenceThreshold };
 }
 

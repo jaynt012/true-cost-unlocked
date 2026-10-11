@@ -14,6 +14,7 @@ export type AIEnhancementStatus = "unconfigured" | "loading" | "ready" | "error"
 interface Props {
   context: AnalysisContext;
   onPrincipalSelect?: (amount: number) => void;
+  onEvidenceSelect?: (span: [number, number]) => void;
   aiEnhancementStatus?: AIEnhancementStatus;
 }
 function RateChangeScenario({ context }: Props) {
@@ -64,7 +65,7 @@ const PANEL_REGISTRY: PanelDescriptor[] = [
   { id: "tools", available: ({ context }) => availableTools(context).length > 0, render: (props) => <AnalysisTools {...props} /> },
 ];
 
-export function AnalysisPanels({ context, onPrincipalSelect, aiEnhancementStatus = "unconfigured" }: Props) {
-  const props = { context, onPrincipalSelect, aiEnhancementStatus };
+export function AnalysisPanels({ context, onPrincipalSelect, onEvidenceSelect, aiEnhancementStatus = "unconfigured" }: Props) {
+  const props = { context, onPrincipalSelect, onEvidenceSelect, aiEnhancementStatus };
   return <section key={context.id} data-analysis-id={context.id} className="space-y-4">{PANEL_REGISTRY.filter((panel) => !panel.available || panel.available(props)).map((panel) => <div key={panel.id} data-analysis-panel={panel.id}>{panel.render(props)}</div>)}</section>;
 }

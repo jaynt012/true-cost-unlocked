@@ -1,0 +1,26 @@
+{
+  "moneyLabelPattern": "\\b(?:principal|loan(?:\\s+amount)?|amount\\s+(?:financed|borrowed|funded|advanced)|advance|credit|fees?|charges?|deposit|price|cost|premium|payment\\s+amount|(?:monthly|weekly|daily|regular)\\s+payment|(?:monthly\\s+)?emi|remittance|net\\s+proceeds|total\\s+(?:repayment|payable|of\\s+payments))\\b[^\\d%]{0,45}$",
+  "quantitySuffixPattern": "^[ \\t]*(?:(?:monthly|weekly|daily|annual|yearly|equal|fixed|scheduled|consecutive|remaining|total|interest[- ]free)[ \\t]+){0,3}(?:years?|yrs?|months?|mos?|weeks?|days?|hours?|fortnights?|times?|payments?|installments?|instalments?|emis?|remittances?|debits?)\\b",
+  "percentSuffixPattern": "^\\s*(?:%|percent\\b|per\\s+cent\\b)",
+  "paymentLabelPattern": "\\b(?:emi|amount\\s+of\\s+(?:each|every)\\s+payment|(?:monthly|weekly|daily|regular|scheduled)\\s+(?:payments?|installments?|instalments?)|payment\\s+amount|installments?|instalments?|payments?)\\b",
+  "paymentExcludedLabelPattern": "\\b(?:down|minimum|balloon|final|total|late|missed|penalty|fee|charge|prepayment|previous|prior)\\b",
+  "paymentNonMonthlyPattern": "\\b(?:weekly|bi[- ]?weekly|fortnightly|daily|every\\s+(?:\\d+\\s+)?(?:days?|weeks?|fortnights?|years?))\\b",
+  "paymentSuffixPattern": "^\\s*(?:per\\s+month|a\\s+month|monthly|/\\s*month)\\b",
+  "rangeConnectorPattern": "^\\s*(?:[-–—]|to|through|and)\\s*$",
+  "rateMarginPattern": "\\b(?:prime|sofr|euribor|libor|benchmark|index|base\\s+rate)\\s*(?:\\+|plus)\\s*$",
+  "rateCurrentPattern": "\\b(?:currently|current\\s+(?:apr|rate)|effective\\s+rate|all[- ]in\\s+rate|resulting\\s+rate)\\b",
+  "ratePeriodAfterPattern": "^\\s*(?:(?:per|each|/)\\s*(day|week|fortnight|month|year|annum)s?\\b|(?:a|an)\\s+(day|week|fortnight|month|year)\\b|(daily|weekly|fortnightly|monthly|annually|yearly)\\b|p\\.?\\s*a\\.?)",
+  "ratePeriodBeforePattern": "\\b(daily|weekly|fortnightly|monthly|annually|yearly|annual)\\s+(?:rate|interest)(?:\\s+rate)?[^\\d%]*$",
+  "rateContextDistance": 100,
+  "labelContextDistance": 90,
+  "rangeConfidence": 0.25,
+  "paymentConfidence": 0.9,
+  "rateContextBreakPattern": "[,;]|\\b(?:and|but|plus|then|thereafter)\\b",
+  "nonBaseRateLabels": [
+    {"role": "penalty", "pattern": "\\b(?:penal(?:ty)?|default|overdue|late(?:\\s+payment)?|delay)\\s+(?:apr|rate|interest)|\\binterest\\s+on\\s+(?:an?\\s+)?overdue"},
+    {"role": "tax", "pattern": "\\b(?:gst|vat|hst|pst|tax(?:es)?|sales\\s+tax)\\b"},
+    {"role": "fee_percent", "pattern": "\\b(?:fees?|charges?|commission|processing|origination|premium)\\b"},
+    {"role": "discount", "pattern": "\\b(?:discount|rebate|cashback|savings|off)\\b"},
+    {"role": "promotional", "pattern": "\\b(?:introductory|promotional|teaser|deferred|interest[- ]free|no[- ]interest)\\b|for\\s+the\\s+first\\s+\\d+\\s+(?:months?|years?)"}
+  ]
+}

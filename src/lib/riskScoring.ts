@@ -43,7 +43,7 @@ export function scoreRiskFindings(findings: readonly CostFinding[], settings = c
   const strongestFloor = (left: RiskBand | null, right: RiskBand | null): RiskBand | null =>
     right && (!left || settings.bands[right] > settings.bands[left]) ? right : left;
   for (const finding of findings as readonly ScoredFinding[]) {
-    if (finding.category === "protection" || finding.negated || finding.severity <= 0
+    if (finding.category === "protection" || finding.category === "conditional_term" || finding.negated || finding.severity <= 0
       || finding.polarity === "hypothetical" || finding.polarity === "negated" || finding.polarity === "waived/zero") continue;
     const matchingIds = new Set([finding.id, finding.topicId, ...(finding.riskRuleIds ?? []), ...(finding.mergedRuleIds ?? [])]);
     let floor = finding.minimumRiskBand ?? null;
