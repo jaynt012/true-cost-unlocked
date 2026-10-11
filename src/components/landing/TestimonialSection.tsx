@@ -1,18 +1,21 @@
 import { motion } from "framer-motion";
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 
 export function TestimonialSection() {
-  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const containerRef = useRef<HTMLDivElement>(null);
   const [isHovering, setIsHovering] = useState(false);
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    setMousePos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    containerRef.current.style.setProperty("--mouse-x", `${e.clientX - rect.left}px`);
+    containerRef.current.style.setProperty("--mouse-y", `${e.clientY - rect.top}px`);
   };
 
   return (
     <section className="px-4 sm:px-8 py-20 relative">
       <div 
+        ref={containerRef}
         className="max-w-3xl mx-auto relative group"
         onMouseMove={handleMouseMove}
         onMouseEnter={() => setIsHovering(true)}
@@ -20,10 +23,10 @@ export function TestimonialSection() {
       >
         {/* Ambient background light behind the component (reduced to 168px) */}
         <div 
-          className="pointer-events-none absolute -inset-6 transition-opacity duration-300 blur-2xl -z-10 rounded-2xl"
+          className="pointer-events-none absolute -inset-6 transition-opacity duration-200 blur-2xl -z-10 rounded-2xl will-change-transform"
           style={{
             opacity: isHovering ? 1 : 0,
-            background: `radial-gradient(168px circle at ${mousePos.x}px ${mousePos.y}px, hsl(68 100% 45% / 0.45), transparent 70%)`
+            background: `radial-gradient(168px circle at var(--mouse-x, 50%) var(--mouse-y, 50%), hsl(68 100% 45% / 0.45), transparent 70%)`
           }}
         />
 
@@ -35,10 +38,10 @@ export function TestimonialSection() {
         >
           {/* Subtle 20% light effect on top of component */}
           <div 
-            className="pointer-events-none absolute inset-0 transition-opacity duration-300"
+            className="pointer-events-none absolute inset-0 transition-opacity duration-200 z-10 will-change-transform"
             style={{
               opacity: isHovering ? 0.2 : 0,
-              background: `radial-gradient(168px circle at ${mousePos.x}px ${mousePos.y}px, hsl(68 100% 45% / 0.5), transparent 70%)`
+              background: `radial-gradient(168px circle at var(--mouse-x, 50%) var(--mouse-y, 50%), hsl(68 100% 45% / 0.5), transparent 70%)`
             }}
           />
 

@@ -2,11 +2,20 @@ import { StatusBar } from "@/components/landing/StatusBar";
 import { Navbar } from "@/components/landing/Navbar";
 import { Footer } from "@/components/landing/Footer";
 import { ArrowRight, Check } from "lucide-react";
-import { useState } from "react";
+import { useState, useRef } from "react";
 
 export default function Contact() {
   const [status, setStatus] = useState<"idle" | "sent">("idle");
   const [charCount, setCharCount] = useState(0);
+  const formRef = useRef<HTMLDivElement>(null);
+  const [isHovering, setIsHovering] = useState(false);
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!formRef.current) return;
+    const rect = formRef.current.getBoundingClientRect();
+    formRef.current.style.setProperty("--mouse-x", `${e.clientX - rect.left}px`);
+    formRef.current.style.setProperty("--mouse-y", `${e.clientY - rect.top}px`);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -73,10 +82,34 @@ export default function Contact() {
               </div>
 
               {/* Right Column: Sleek Minimalist Terminal Card Form */}
-              <div className="lg:col-span-7">
-                <div className="terminal-card terminal-glow bg-card p-7 sm:p-9 relative">
+              <div 
+                ref={formRef}
+                className="lg:col-span-7 relative group"
+                onMouseMove={handleMouseMove}
+                onMouseEnter={() => setIsHovering(true)}
+                onMouseLeave={() => setIsHovering(false)}
+              >
+                {/* Ambient background light behind the terminal form card (135px radius) */}
+                <div 
+                  className="pointer-events-none absolute -inset-6 transition-opacity duration-200 blur-2xl -z-10 rounded-2xl will-change-transform"
+                  style={{
+                    opacity: isHovering ? 1 : 0,
+                    background: `radial-gradient(135px circle at var(--mouse-x, 50%) var(--mouse-y, 50%), hsl(68 100% 45% / 0.45), transparent 70%)`
+                  }}
+                />
+
+                <div className="terminal-card terminal-glow bg-card p-7 sm:p-9 relative overflow-hidden z-10">
+                  {/* Subtle 20% light effect on top of component (135px radius) */}
+                  <div 
+                    className="pointer-events-none absolute inset-0 transition-opacity duration-200 z-20 will-change-transform"
+                    style={{
+                      opacity: isHovering ? 0.2 : 0,
+                      background: `radial-gradient(135px circle at var(--mouse-x, 50%) var(--mouse-y, 50%), hsl(68 100% 45% / 0.5), transparent 70%)`
+                    }}
+                  />
+
                   {/* Terminal Header Bar inside Card */}
-                  <div className="flex items-center justify-between border-b border-border/50 pb-4 mb-6">
+                  <div className="flex items-center justify-between border-b border-border/50 pb-4 mb-6 relative z-10">
                     <div className="flex items-center gap-2">
                       <span className="w-2 h-2 bg-primary"></span>
                       <span className="font-mono text-[11px] text-foreground tracking-widest uppercase font-bold">TRANSMISSION SPECIFICATION</span>

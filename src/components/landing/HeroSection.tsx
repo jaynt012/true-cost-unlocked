@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { ArrowUpRight } from "lucide-react";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 
 function useRandomizedNumber(target: string, duration = 1500, delay = 200) {
   const [display, setDisplay] = useState(() =>
@@ -55,12 +55,14 @@ export function HeroSection() {
   const docsAnalyzed = useRandomizedNumber("12,847", 1500, 200);
   const feesDetected = useRandomizedNumber("$2.4B", 1500, 200);
   const riskAlerts = useRandomizedNumber("8,421", 1500, 200);
-  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const dashboardRef = useRef<HTMLDivElement>(null);
   const [isHovering, setIsHovering] = useState(false);
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    setMousePos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+    if (!dashboardRef.current) return;
+    const rect = dashboardRef.current.getBoundingClientRect();
+    dashboardRef.current.style.setProperty("--mouse-x", `${e.clientX - rect.left}px`);
+    dashboardRef.current.style.setProperty("--mouse-y", `${e.clientY - rect.top}px`);
   };
 
   return (
@@ -126,28 +128,36 @@ export function HeroSection() {
         </div>
 
         {/* Right: Terminal dashboard */}
-        <motion.div
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.4, duration: 0.6 }}
-          className="terminal-card terminal-glow relative overflow-hidden"
+        <div 
+          ref={dashboardRef}
+          className="relative group"
           onMouseMove={handleMouseMove}
           onMouseEnter={() => setIsHovering(true)}
           onMouseLeave={() => setIsHovering(false)}
         >
-          {/* Edge hover lighting only (masked to border perimeter, no light on the graph) */}
-          {isHovering && (
-            <div
-              className="pointer-events-none absolute inset-0 z-50 rounded-[inherit] transition-opacity duration-300"
+          {/* Ambient background light behind the terminal dashboard (135px radius) */}
+          <div 
+            className="pointer-events-none absolute -inset-6 transition-opacity duration-200 blur-2xl -z-10 rounded-2xl will-change-transform"
+            style={{
+              opacity: isHovering ? 1 : 0,
+              background: `radial-gradient(135px circle at var(--mouse-x, 50%) var(--mouse-y, 50%), hsl(68 100% 45% / 0.45), transparent 70%)`
+            }}
+          />
+
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.4, duration: 0.6 }}
+            className="terminal-card bg-card terminal-glow relative z-10 overflow-hidden"
+          >
+            {/* Subtle 20% light effect on top of component (135px radius) */}
+            <div 
+              className="pointer-events-none absolute inset-0 transition-opacity duration-200 z-20 will-change-transform"
               style={{
-                background: `radial-gradient(200px circle at ${mousePos.x}px ${mousePos.y}px, hsl(68 100% 45% / 0.85), transparent 45%)`,
-                WebkitMask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
-                WebkitMaskComposite: "xor",
-                maskComposite: "exclude",
-                padding: "2px",
+                opacity: isHovering ? 0.2 : 0,
+                background: `radial-gradient(135px circle at var(--mouse-x, 50%) var(--mouse-y, 50%), hsl(68 100% 45% / 0.5), transparent 70%)`
               }}
             />
-          )}
           {/* Terminal header */}
           <div className="flex items-center justify-between px-4 py-2 border-b border-border">
             <div className="flex items-center gap-3">
@@ -286,6 +296,7 @@ export function HeroSection() {
           </div>
         </motion.div>
       </div>
+    </div>
     </section>
   );
 }

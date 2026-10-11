@@ -44,7 +44,7 @@ function FeatureCard({ mod, i }: { mod: any; i: number }) {
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
       transition={{ delay: i * 0.1 }}
-      className="bg-background p-8 group relative overflow-hidden"
+      className="bg-background p-8 group relative overflow-hidden transition-colors hover:bg-card/50"
       onMouseMove={handleMouseMove}
       onMouseEnter={() => setIsHovering(true)}
       onMouseLeave={() => setIsHovering(false)}
