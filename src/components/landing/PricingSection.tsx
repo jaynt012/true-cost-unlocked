@@ -7,6 +7,8 @@ const tiers = [
     label: "FREE",
     title: "Analyzer",
     price: "Free",
+    badge: null,
+    note: null,
     features: ["Document Analysis", "EMI Calculator", "Basic Risk Score"],
     cta: "Start Analyzing",
     ctaLink: "/analyze",
@@ -16,15 +18,19 @@ const tiers = [
     label: "STANDARD",
     title: "AI Enhanced",
     price: "Pro",
+    badge: "FREE ACCESS",
+    note: "Limited-time free access — all features unlocked.",
     features: ["Everything in Free", "AI-Powered Insights", "Deep Fee Detection", "Comparison Reports"],
-    cta: "Coming Soon",
-    ctaLink: "#",
+    cta: "Access Free Pro",
+    ctaLink: "/analyze",
     highlight: true,
   },
   {
     label: "ENTERPRISE",
     title: "White-Label",
     price: "Custom",
+    badge: null,
+    note: null,
     features: ["Full API Access", "Custom Integrations", "Bulk Processing", "On-premise Deployment"],
     cta: "Contact Us",
     ctaLink: "/contact",
@@ -53,20 +59,34 @@ export function PricingSection() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ delay: i * 0.1 }}
-            className={`p-8 ${tier.highlight ? "bg-card terminal-border-glow border-l border-r border-primary/20" : "bg-background"}`}
+            className={`p-8 flex flex-col justify-between ${
+              tier.highlight ? "bg-card terminal-border-glow border-l border-r border-primary/20" : "bg-background"
+            }`}
           >
-            <span className="font-mono text-[10px] tracking-widest text-primary/60 block mb-4">{tier.label}</span>
-            <h3 className="font-display text-xl font-bold text-foreground mb-1">{tier.title}</h3>
-            <span className="font-display text-3xl font-bold text-primary block mb-6">{tier.price}</span>
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <span className="font-mono text-[10px] tracking-widest text-primary/60">{tier.label}</span>
+                {tier.badge && (
+                  <span className="font-mono text-[9px] uppercase tracking-wider px-2 py-0.5 border border-primary/40 text-primary bg-primary/5">
+                    {tier.badge}
+                  </span>
+                )}
+              </div>
+              <h3 className="font-display text-xl font-bold text-foreground mb-1">{tier.title}</h3>
+              <span className="font-display text-3xl font-bold text-primary block mb-2">{tier.price}</span>
+              {tier.note && (
+                <p className="font-mono text-[11px] text-primary/90 mb-4">{tier.note}</p>
+              )}
 
-            <ul className="space-y-3 mb-8">
-              {tier.features.map((f) => (
-                <li key={f} className="flex items-center gap-3 font-mono text-sm text-muted-foreground">
-                  <Check className="w-4 h-4 text-primary flex-shrink-0" />
-                  {f}
-                </li>
-              ))}
-            </ul>
+              <ul className="space-y-3 mb-8">
+                {tier.features.map((f) => (
+                  <li key={f} className="flex items-center gap-3 font-mono text-sm text-muted-foreground">
+                    <Check className="w-4 h-4 text-primary flex-shrink-0" />
+                    {f}
+                  </li>
+                ))}
+              </ul>
+            </div>
 
             <Link
               to={tier.ctaLink}

@@ -54,7 +54,7 @@ function FeatureCard({ mod, i }: { mod: any; i: number }) {
         className="pointer-events-none absolute inset-0 transition-opacity duration-300"
         style={{
           opacity: isHovering ? 1 : 0,
-          background: `radial-gradient(400px circle at ${mousePos.x}px ${mousePos.y}px, hsl(68 100% 45% / 0.3), transparent 40%)`
+          background: `radial-gradient(200px circle at ${mousePos.x}px ${mousePos.y}px, hsl(68 100% 45% / 0.25), transparent 60%)`
         }}
       />
       

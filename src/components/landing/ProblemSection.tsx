@@ -32,7 +32,7 @@ function ProblemCard({ p, i }: { p: any; i: number }) {
         className="pointer-events-none absolute inset-0 transition-opacity duration-300"
         style={{
           opacity: isHovering ? 1 : 0,
-          background: `radial-gradient(400px circle at ${mousePos.x}px ${mousePos.y}px, hsl(var(--destructive) / 0.3), transparent 40%)`
+          background: `radial-gradient(200px circle at ${mousePos.x}px ${mousePos.y}px, hsl(var(--destructive) / 0.25), transparent 60%)`
         }}
       />
       <span className="font-mono text-[11px] tracking-widest text-destructive mb-4 block relative z-10">{p.code}</span>

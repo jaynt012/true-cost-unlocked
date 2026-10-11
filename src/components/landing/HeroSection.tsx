@@ -140,7 +140,7 @@ export function HeroSection() {
             <div
               className="pointer-events-none absolute inset-0 z-50 rounded-[inherit] transition-opacity duration-300"
               style={{
-                background: `radial-gradient(350px circle at ${mousePos.x}px ${mousePos.y}px, hsl(68 100% 45% / 0.85), transparent 40%)`,
+                background: `radial-gradient(200px circle at ${mousePos.x}px ${mousePos.y}px, hsl(68 100% 45% / 0.85), transparent 45%)`,
                 WebkitMask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
                 WebkitMaskComposite: "xor",
                 maskComposite: "exclude",
@@ -252,14 +252,6 @@ export function HeroSection() {
                   RISK ALERTS
                 </span>
                 <span className="font-display text-xl font-bold text-foreground block tabular-nums">{riskAlerts}</span>
-                <div className="w-full h-1 bg-border mt-2">
-                  <motion.div
-                    className="h-full bg-primary"
-                    initial={{ width: "0%" }}
-                    animate={{ width: "75%" }}
-                    transition={{ duration: 1.5, ease: [0.25, 1, 0.5, 1], delay: 0.2 }}
-                  />
-                </div>
               </div>
             </div>
           </div>
