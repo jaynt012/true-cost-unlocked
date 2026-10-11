@@ -2,7 +2,7 @@
 
 Financial clarity for real people. TRUE COST analyzes loan and credit terms, surfaces hidden fees, and shows the real repayment burden before you commit.
 
-![FIN Emblem](public/fin-logo.svg)
+<img src="public/fin-logo.svg" width="200" alt="FIN Emblem">
 
 ![Vite](https://img.shields.io/badge/Vite-5.x-0f172a?logo=vite&logoColor=white)
 ![React](https://img.shields.io/badge/React-18-0b3b6f?logo=react&logoColor=61dafb)
@@ -12,11 +12,11 @@ Financial clarity for real people. TRUE COST analyzes loan and credit terms, sur
 
 ## What This Product Does
 
-- 🔎 Decodes financial/legal text into plain-language risks
-- 🧾 Detects hidden fees and manipulative clauses
-- 📊 Computes EMI, total payment, and true interest burden
-- 🛡️ Generates a risk score with recommendations
-- 💱 Supports INR and USD extraction + calculations
+-  Decodes financial/legal text into plain-language risks
+-  Detects hidden fees and manipulative clauses
+-  Computes EMI, total payment, and true interest burden
+-  Generates a risk score with optional AI recommendations
+-  Supports INR and USD and other major currency extraction & calculations
 
 ## Visual Snapshot
 
@@ -24,7 +24,7 @@ Financial clarity for real people. TRUE COST analyzes loan and credit terms, sur
 
 ## Core Experience
 
-1. Paste agreement text on the Analyze page
+1. Paste agreement text on the Analyze page or upload image and pdf
 2. Auto-extract amount, APR, and duration
 3. Review hidden-fee flags, EMI math, and risk score
 4. Explore worst-case scenarios and savings simulation
