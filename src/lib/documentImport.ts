@@ -86,8 +86,9 @@ async function readPdf(file: File, options: DocumentImportOptions): Promise<Docu
   const pdfjs = await import("pdfjs-dist/build/pdf.mjs");
   const pdfWorker = await import("pdfjs-dist/build/pdf.worker.min.mjs?url");
   pdfjs.GlobalWorkerOptions.workerSrc = pdfWorker.default;
-  const pdf = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise;
-  if (pdf.numPages > MAX_PAGES) { await pdf.destroy(); throw new Error("PDF has more than the 30-page limit."); }
+  const loadingTask = pdfjs.getDocument({ data: await file.arrayBuffer() });
+  const pdf = await loadingTask.promise;
+  if (pdf.numPages > MAX_PAGES) { await loadingTask.destroy(); throw new Error("PDF has more than the 30-page limit."); }
   let ocrWorker: Awaited<ReturnType<(typeof import("tesseract.js"))["createWorker"]>> | null = null;
   let text = "";
   const pages: ImportedSourcePage[] = [];
@@ -137,7 +138,7 @@ async function readPdf(file: File, options: DocumentImportOptions): Promise<Docu
     }
   } finally {
     await ocrWorker?.terminate();
-    await pdf.destroy();
+    await loadingTask.destroy();
   }
   return { text, pages, spans };
 }

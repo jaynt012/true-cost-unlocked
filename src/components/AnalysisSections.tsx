@@ -1,4 +1,5 @@
 import { AlertTriangle, Brain, DollarSign, FileWarning, Shield } from "lucide-react";
+import { motion } from "framer-motion";
 import TerminalCard from "./TerminalCard";
 import { RiskMeter } from "./RiskMeter";
 import { AICounterOfferEmail } from "./AICounterOfferEmail";
@@ -22,7 +23,8 @@ export function AnalysisDashboard({ context, onPrincipalSelect }: Props) {
   const reason = hasIssues ? "Review the detected findings and their evidence below."
     : context.protections.length ? "Documented protections with no detected material flags." : "No configured material flags detected.";
   return <div className="space-y-4">
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
+    <motion.div initial="hidden" animate="visible" variants={{ visible: { transition: { staggerChildren: 0.24 } } }} className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
+      <motion.div variants={{ hidden: { opacity: 0, y: 28, filter: "blur(5px)" }, visible: { opacity: 1, y: 0, filter: "blur(0px)" } }} transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}>
       <TerminalCard title="VERDICT" icon={Shield} className="h-full">
         <div className="flex justify-center py-2"><RiskMeter score={context.riskScore} band={context.riskBand} incomplete={context.analysisIncomplete} /></div>
         {scored.length > 0 && <details className="mt-3 border-t border-border pt-2 font-mono text-xs text-muted-foreground">
@@ -32,6 +34,8 @@ export function AnalysisDashboard({ context, onPrincipalSelect }: Props) {
           <p className="mt-1">Final score: {Number(context.riskScore.toFixed(1))}/100{combinedScore < context.riskScore ? " (catalog minimum applied)" : ""}.</p>
         </details>}
       </TerminalCard>
+      </motion.div>
+      <motion.div variants={{ hidden: { opacity: 0, y: 28, filter: "blur(5px)" }, visible: { opacity: 1, y: 0, filter: "blur(0px)" } }} transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}>
       <TerminalCard title="PLAIN ENGLISH SUMMARY" icon={FileWarning} className="h-full">
         <p className="font-mono text-sm leading-relaxed text-foreground">{context.summary}</p>
         <p className="mt-4 font-mono text-xs text-muted-foreground">Extraction confidence: {Math.round(context.confidence * 100)}% · {context.docType.label}</p>
@@ -39,7 +43,8 @@ export function AnalysisDashboard({ context, onPrincipalSelect }: Props) {
         <p className="mt-2 font-mono text-[10px] text-muted-foreground">Currency: {context.currency ?? "not detected"}{context.currency ? " (automatic)" : " (USD display fallback)"}</p>
         {!context.calculator.available && <p className="mt-3 font-mono text-xs text-muted-foreground">{context.calculator.unsupportedReason || `${context.calculator.label} needs: ${context.calculator.missingInputs.join(", ")}.`}</p>}
       </TerminalCard>
-    </div>
+      </motion.div>
+    </motion.div>
     {context.principalField.needsReview && context.principalField.alternatives.length > 0 && <TerminalCard title="SELECT PRINCIPAL AMOUNT" icon={AlertTriangle}>
       <p className="mb-3 font-mono text-xs text-muted-foreground">Choose the amount labeled as the financed principal.</p>
       <div className="flex flex-wrap gap-2">{context.principalField.alternatives.map((candidate) => <button type="button" key={`${candidate.position}:${candidate.value}`} onClick={() => onPrincipalSelect?.(candidate.value)} className="border border-border px-3 py-2 text-left font-mono text-xs hover:border-primary/50">

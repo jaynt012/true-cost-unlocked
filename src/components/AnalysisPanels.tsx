@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
+import { motion } from "framer-motion";
 import { AnalysisDashboard, AnalysisNumbers, AnalysisFindings, AnalysisExplain, AnalysisAIAssistant } from "./AnalysisSections";
 import { AmortizationTable } from "./AmortizationTable";
 import { WorstCaseSimulator } from "./WorstCaseSimulator";
@@ -67,5 +68,11 @@ const PANEL_REGISTRY: PanelDescriptor[] = [
 
 export function AnalysisPanels({ context, onPrincipalSelect, onEvidenceSelect, aiEnhancementStatus = "unconfigured" }: Props) {
   const props = { context, onPrincipalSelect, onEvidenceSelect, aiEnhancementStatus };
-  return <section key={context.id} data-analysis-id={context.id} className="space-y-4">{PANEL_REGISTRY.filter((panel) => !panel.available || panel.available(props)).map((panel) => <div key={panel.id} data-analysis-panel={panel.id}>{panel.render(props)}</div>)}</section>;
+  return <motion.section key={context.id} data-analysis-id={context.id} className="space-y-4" initial="hidden" animate="visible" variants={{ visible: { transition: { staggerChildren: 0.22 } } }}>
+    {PANEL_REGISTRY.filter((panel) => !panel.available || panel.available(props)).map((panel) => <motion.div key={panel.id} data-analysis-panel={panel.id}
+      variants={{ hidden: { opacity: 0, y: 32, scale: 0.985, filter: "blur(6px)" }, visible: { opacity: 1, y: 0, scale: 1, filter: "blur(0px)" } }}
+      transition={{ duration: 0.75, ease: [0.22, 1, 0.36, 1] }}>
+      {panel.render(props)}
+    </motion.div>)}
+  </motion.section>;
 }

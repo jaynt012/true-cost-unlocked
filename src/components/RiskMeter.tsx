@@ -1,4 +1,5 @@
-import { motion } from "framer-motion";
+import { animate, motion, useMotionValue, useTransform } from "framer-motion";
+import { useEffect } from "react";
 import { riskBandForScore, type RiskBand } from "@/lib/riskScoring";
 
 interface Props {
@@ -22,6 +23,13 @@ export function RiskMeter({ score, band = riskBandForScore(score), incomplete = 
 
   const clampedScore = Math.min(Math.max(score, 0), 100);
   const rotation = (clampedScore / 100) * 180 - 90;
+  const animatedScore = useMotionValue(0);
+  const scoreLabel = useTransform(animatedScore, (value) => `${value.toFixed(1)}/100`);
+
+  useEffect(() => {
+    const controls = animate(animatedScore, clampedScore, { duration: 2.6, ease: "easeInOut" });
+    return controls.stop;
+  }, [animatedScore, clampedScore]);
 
   return (
     <div className="flex flex-col items-center gap-3">
@@ -42,7 +50,7 @@ export function RiskMeter({ score, band = riskBandForScore(score), incomplete = 
           style={{ width: 2, height: 75, marginLeft: -1 }}
           initial={{ rotate: -90 }}
           animate={{ rotate: rotation }}
-          transition={{ type: "spring", stiffness: 60, damping: 15 }}
+          transition={{ duration: 0.9, ease: "easeInOut" }}
         >
           <div className="w-full h-full" style={{ backgroundColor: getColor() }} />
         </motion.div>
@@ -50,13 +58,10 @@ export function RiskMeter({ score, band = riskBandForScore(score), incomplete = 
       </div>
       <div className="text-center">
         <motion.span
-          key={score}
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
           className="text-2xl font-mono font-bold"
           style={{ color: getColor() }}
         >
-          {Number(score.toFixed(1))}/100
+          {scoreLabel}
         </motion.span>
         <p className="font-mono text-[10px] tracking-widest text-muted-foreground mt-1">{getLabel()}</p>
         {incomplete && <p className="font-mono text-[10px] text-muted-foreground">Based on detected findings; some terms could not be extracted.</p>}

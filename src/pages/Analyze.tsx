@@ -21,6 +21,7 @@ export default function Analyze() {
   const [aiEnhancementStatus, setAIEnhancementStatus] = useState<AIEnhancementStatus>("unconfigured");
   const aiRequestVersion = useRef(0);
   const analysisRequestVersion = useRef(0);
+  const scrollToResultsRef = useRef(false);
   const aiFallbackRef = useRef<AIExtractedFields | undefined>(undefined);
   const extractionRequest = useRef<AbortController | null>(null);
   const insightRequest = useRef<AbortController | null>(null);
@@ -31,9 +32,19 @@ export default function Analyze() {
     insightRequest.current?.abort();
   }, []);
 
+  useEffect(() => {
+    if (!result || !scrollToResultsRef.current) return;
+    scrollToResultsRef.current = false;
+    const frame = window.requestAnimationFrame(() => {
+      document.getElementById("analysis-results")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [result]);
+
   const invalidateAnalysis = () => {
     analysisRequestVersion.current += 1;
     aiRequestVersion.current += 1;
+    scrollToResultsRef.current = false;
     extractionRequest.current?.abort();
     insightRequest.current?.abort();
     aiFallbackRef.current = undefined;
@@ -94,6 +105,7 @@ export default function Analyze() {
 
   const handleAnalyze = async (text: string, amount: number | null, rate: number | null, duration: number | null, currency: SupportedCurrency | null, importedSource?: { pages: AnalysisContext["sourcePages"]; spans: AnalysisContext["sourceSpans"] } | null) => {
     invalidateAnalysis();
+    scrollToResultsRef.current = true;
     const requestVersion = ++analysisRequestVersion.current;
     const controller = new AbortController();
     extractionRequest.current = controller;
@@ -131,6 +143,7 @@ export default function Analyze() {
       requestAIEnhancement(analysis);
     } catch (error) {
       if (requestVersion !== analysisRequestVersion.current) return;
+      scrollToResultsRef.current = false;
       setAnalysisError(error instanceof Error ? error.message : "The document could not be analyzed.");
     } finally {
       if (requestVersion !== analysisRequestVersion.current) return;
@@ -174,7 +187,7 @@ export default function Analyze() {
         </motion.header>
 
         <AnalysisInput onAnalyze={handleAnalyze} onInputChange={invalidateAnalysis} isLoading={isLoading} evidenceSelection={evidenceSelection} />
-        <div className="mt-8 space-y-4">
+        <div id="analysis-results" className="mt-8 scroll-mt-4 space-y-4">
           {fallbackMessage && <p role="status" className="border border-primary/20 bg-primary/5 px-4 py-3 font-mono text-xs text-muted-foreground">{fallbackMessage}</p>}
           {analysisError && <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
             className="flex items-start gap-3 px-4 py-3 border border-destructive/30 bg-destructive/5">
