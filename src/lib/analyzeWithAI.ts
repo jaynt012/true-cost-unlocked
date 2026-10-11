@@ -95,7 +95,7 @@ async function requestOpenRouter(messages: Array<{ role: "system" | "user"; cont
         ...(json ? { response_format: { type: "json_object" } } : {}),
         messages,
         temperature: 0.2,
-        max_tokens: json ? 1200 : 500,
+        max_tokens: json ? 1200 : 900,
       }),
     });
 
@@ -342,8 +342,8 @@ export async function enhanceAnalysisWithAI(context: AnalysisContext, options: A
 export async function regenerateCounterOfferEmail(context: AnalysisContext, options: AIRequestOptions = {}): Promise<string> {
   if (!hasActionableFindings(context)) return NO_NEGOTIATION_ISSUES;
   const response = await requestOpenRouter([
-    { role: "system", content: `${SYSTEM_PROMPT} Draft a concise, polite email referencing only verified actionable findings or unresolved fields. Return only the email text.` },
-    { role: "user", content: JSON.stringify(buildAIContext(context)) },
+    { role: "system", content: `${SYSTEM_PROMPT} Write a specific, professional negotiation email to the provider. Address EVERY actionable finding and unresolved field in the supplied context; do not skip issues. For each issue, name the concern, explain the practical change requested, and ask the provider to confirm revised terms in writing. Include concrete improvements such as removing or capping a fee, narrowing a broad default trigger, making a rate fixed or changes require written consent, or clarifying an unresolved term only when that issue appears in the context. Use only facts and amounts supplied; never invent a target rate, legal right, fee, or promise. Consider documented protections so you do not ask to change terms already favorable to the borrower. Use a courteous but firm tone, with greeting, concise issue-by-issue requests, and sign-off. Return the complete email only.` },
+    { role: "user", content: `Draft from this verified analysis. The findings and unresolved fields are the complete issue checklist; make a distinct request for each actionable item.\n<analysis_context>\n${JSON.stringify(buildAIContext(context))}\n</analysis_context>` },
   ], false, options);
   return validateAIEnhancement(context, { counterOfferEmail: response }).aiCounterOfferEmail ?? "";
 }

@@ -443,36 +443,20 @@ export function getCurrencyLocale(currency: SupportedCurrency = DEFAULT_CURRENCY
 // Demo data
 // ---------------------------------------------------------------------------
 
-export const DEMO_TEXT = `CREDIT CARD AGREEMENT - PLATINUM REWARDS CARD
-
-Annual Percentage Rate (APR): 24.99% variable, based on the Prime Rate.
-Introductory APR: 0% for the first 12 months on purchases and balance transfers.
-After the introductory period, the APR will revert to 24.99%.
-
-PENALTY APR: 29.99%. This APR may be applied if you make a late payment.
-We may apply the Penalty APR indefinitely.
-
-ANNUAL FEE: $95 (waived for the first year).
-
-BALANCE TRANSFER FEE: 3% of the amount transferred, minimum $5.
-CASH ADVANCE FEE: 5% of the amount, minimum $10.
-FOREIGN TRANSACTION FEE: 3% of each transaction in U.S. dollars.
-
-LATE PAYMENT FEE: Up to $40.
-RETURNED PAYMENT FEE: Up to $40.
-
-MINIMUM PAYMENT: The greater of $25 or 1% of the outstanding balance plus interest and fees.
-
-ACT NOW - LIMITED TIME OFFER! This exclusive rate won't last forever!
-Don't miss out on this once-in-a-lifetime opportunity!
-Save up to 80% compared to other cards! (compared to our highest rate tier)
-
-Note: Making only the minimum payment will result in paying more in interest and will take longer to pay off the balance. We may change the terms at any time with 45 days notice. Promotional rates may be terminated early if any payment is missed.`;
-
 // Illustrative installment-loan figures used by the demo UI.
-// (A credit card is revolving credit; see minimumPaymentPayoff for the more honest model.)
 export const DEMO_LOAN = {
   amount: 25000,
   rate: 24.99,
   duration: 36,
 };
+
+export const DEMO_TEXT = `PERSONAL INSTALLMENT LOAN AGREEMENT
+
+Principal Amount: $${DEMO_LOAN.amount.toLocaleString("en-US")}
+Annual Percentage Rate (APR): ${DEMO_LOAN.rate}% fixed
+Loan Term: ${DEMO_LOAN.duration} months
+Payments: ${DEMO_LOAN.duration} monthly installments
+Origination Fee: $500, deducted from the loan proceeds
+Late Payment Fee: $25 if a payment is more than 10 days late
+
+The borrower may prepay the loan at any time without a prepayment penalty.`;
