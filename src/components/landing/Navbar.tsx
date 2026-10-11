@@ -1,5 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { User } from "lucide-react";
 
 export function Navbar() {
   const location = useLocation();
@@ -39,12 +40,15 @@ export function Navbar() {
 
       <div className="flex items-center gap-3">
         <ThemeToggle />
-        <Link
-          to="/analyze"
-          className="font-mono text-[11px] tracking-widest uppercase px-6 py-3 border border-foreground text-foreground hover:bg-foreground hover:text-background transition-all"
+        <button
+          type="button"
+          className="relative flex items-center justify-center w-9 h-9 border border-border bg-card/40 text-muted-foreground hover:text-primary hover:border-primary/60 hover:bg-card hover:shadow-[0_0_12px_hsl(68_100%_45%/0.2)] transition-all duration-300 group cursor-pointer"
+          aria-label="Profile"
+          title="Profile"
         >
-          LAUNCH ANALYZER
-        </Link>
+          <User className="w-4 h-4 transition-transform duration-300 group-hover:scale-110" />
+          <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-primary ring-2 ring-background transition-transform duration-300 group-hover:scale-110" />
+        </button>
       </div>
     </nav>
   );
