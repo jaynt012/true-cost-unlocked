@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Check, Copy, Mail, RefreshCw, Send } from "lucide-react";
 import TerminalCard from "./TerminalCard";
-import { regenerateCounterOfferEmail } from "@/lib/analyzeWithAI";
+import { hasActionableFindings, regenerateCounterOfferEmail } from "@/lib/analyzeWithAI";
 import type { AnalysisContext } from "@/lib/analysisContext";
 
 interface Props {
@@ -13,6 +13,8 @@ export function AICounterOfferEmail({ context }: Props) {
   const [isCopied, setIsCopied] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  if (!hasActionableFindings(context)) return null;
 
   const copyEmail = async () => {
     try {

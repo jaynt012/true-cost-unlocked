@@ -1,6 +1,6 @@
 import { analyzeLoan, calculateEffectiveAPR, calculateEMI, calculateFlatLoan, detectCurrency, formatCurrency, minimumPaymentPayoff, normalizeDuration, type SupportedCurrency } from "./financial";
-import { calculateRisk, classifyDocument, computeTaxImpacts, detectClaims, detectClaimsGeneric, detectCosts, detectCostsGeneric, extractAmountCandidates, extractRateCandidates, extractStatedEMI, parseMonetaryValues, resolveDerivedAmountCandidates, scorePrincipalCandidates, segmentClauses, type ParsedRateCandidate } from "./analysisEngine";
-import { freezeAnalysisContext, type AdviceResult, type AddOnImpact, type AlternativeFunding, type AnalysisContext, type AmountRelationship, type CashPriceAnalysis, type CostBreakdown, type DeceptionResult, type ExtractedField, type FairMarketBenchmark, type GlossaryItem, type InstallmentSchedule, type ReconciliationCheck } from "./analysisContext";
+import { calculateRisk, canonicalFinding, classifyDocument, classifyPolarity, collectRuleFindings, computeTaxImpacts, detectClaims, detectClaimsGeneric, detectCosts, detectCostsGeneric, extractAmountCandidates, extractRateCandidates, extractRateType, extractStatedEMI, parseMonetaryValues, resolveDerivedAmountCandidates, scorePrincipalCandidates, segmentClauses, type ParsedRateCandidate } from "./analysisEngine";
+import { freezeAnalysisContext, type AdviceResult, type AddOnImpact, type AlternativeFunding, type AnalysisContext, type AnalysisFinding, type AmountRelationship, type CashPriceAnalysis, type CostBreakdown, type CostFinding, type DeceptionResult, type ExtractedField, type FairMarketBenchmark, type GlossaryItem, type InstallmentSchedule, type ReconciliationCheck } from "./analysisContext";
 import rules from "@/data/analysisRules.json";
 
 const CURRENCY_AMOUNT_SOURCE = String.raw`(?:\$|₹|€|£|¥|US\$|C\$|A\$|S\$|usd|inr|eur|gbp|jpy|cad|aud|sgd|aed|rs\.?)`;
@@ -95,6 +95,9 @@ export function extractValuesFromText(text: string): ExtractedValues {
     alternatives: rateCandidates.map((candidate) => ({ value: candidate.value, label: candidate.role + " rate", source: candidate.source, position: candidate.start, confidence: candidate.assumption ? 0.82 : 0.9, score: 0 })),
     needsReview: false,
     rateType,
+    type: (selectedRate?.type ?? conditionalRate?.type ?? "unspecified") !== "unspecified"
+      ? (selectedRate?.type ?? conditionalRate?.type ?? "unspecified") : extractRateType(text),
+    basis: selectedRate?.basis ?? conditionalRate?.basis ?? "unspecified",
     rateRole,
     basisAssumption,
   };
@@ -208,8 +211,16 @@ export function generateAdvice(riskScore: number, confidence: number, contradict
   };
 }
 
-export function generateLocalGlossary(text: string): GlossaryItem[] {
-  return rules.glossary.filter((item) => new RegExp(item.pattern, "i").test(text)).map(({ term, definition }) => ({ term, definition }));
+export function generateLocalGlossary(input: string | CostFinding[]): GlossaryItem[] {
+  const findings = typeof input === "string" ? detectCostsGeneric(input, null, null, null).findings : input;
+  const active = findings.filter((finding) => finding.category !== "protection" && !finding.negated && finding.polarity !== "hypothetical");
+  const glossary = rules.glossary.filter((item) => active.some((finding) => new RegExp(item.pattern, "i").test(finding.evidence ?? finding.source))).map(({ term, definition }) => ({ term, definition }));
+  for (const category of new Set(active.map((finding) => finding.category))) {
+    const item = rules.categoryGlossary.find((entry) => entry.category === category);
+    if (item && !glossary.some((entry) => entry.term === item.term)) glossary.push({ term: item.term, definition: item.definition });
+  }
+  if (findings.some((finding) => finding.category === "protection")) glossary.push({ term: "Consumer protections", definition: "Documented exclusions, waivers, fixed rates, and cancellation windows limit the specified charges or obligations under their stated conditions." });
+  return glossary;
 }
 
 export function generateLocalFairMarket(rate: number, currency: SupportedCurrency, docType: string, region: string | null): FairMarketBenchmark | undefined {
@@ -345,7 +356,7 @@ function analyzeLocallyLegacy(
     ? extracted.rateField.rateType === "deferred" ? "deferred" : "reducing"
     : extracted.rateField.rateType;
   const rateField: AnalysisContext["rateField"] = useRateOverride
-    ? { value: rateOverride, source: "User override", confidence: 1, alternatives: extracted.rateField.alternatives, needsReview: false, rateType, rateRole: "base", basisAssumption: null }
+    ? { value: rateOverride, source: "User override", confidence: 1, alternatives: extracted.rateField.alternatives, needsReview: false, rateType, type: "unspecified", basis: "unspecified", rateRole: "base", basisAssumption: null }
     : { ...extracted.rateField, rateType };
   const currency = currencyOverride ?? detectCurrency(text);
   const currencyCode = currency ?? "USD";
@@ -454,6 +465,8 @@ function analyzeLocallyLegacy(
     statedEMI: extracted.statedEMI,
     installmentSchedule: schedule,
     principal,
+    findings: findings.map(canonicalFinding),
+    protections: findings.filter((finding) => finding.category === "protection").map(canonicalFinding),
     fees,
     addOns,
     taxes,
@@ -525,7 +538,7 @@ export function analyzeLocally(
     ? extracted.rateField.rateType === "deferred" ? "deferred" : "reducing"
     : extracted.rateField.rateType;
   let rateField: AnalysisContext["rateField"] = useRateOverride
-    ? { value: rateOverride, source: "User override", confidence: 1, alternatives: extracted.rateField.alternatives, needsReview: false, rateType, rateRole: "base", basisAssumption: null }
+    ? { value: rateOverride, source: "User override", confidence: 1, alternatives: extracted.rateField.alternatives, needsReview: false, rateType, type: "unspecified", basis: "unspecified", rateRole: "base", basisAssumption: null }
     : { ...extracted.rateField, rateType };
   const currency = currencyOverride ?? detectCurrency(text);
   const currencyCode = currency ?? "USD";
@@ -579,10 +592,10 @@ export function analyzeLocally(
     }
   }
   const allFindings = Array.from(new Map(detected.findings.map((finding) => [
-    finding.position + ":" + finding.category + ":" + finding.source.replace(/\s+/g, " ").trim().toLowerCase(),
+    finding.position + ":" + finding.id + ":" + finding.category + ":" + finding.source.replace(/\s+/g, " ").trim().toLowerCase(),
     finding,
   ])).values());
-  const fees = allFindings.filter((finding) => !["financed_addon", "tax", "offset"].includes(finding.category));
+  const fees = allFindings.filter((finding) => !["financed_addon", "tax", "offset", "protection"].includes(finding.category));
   const addOns = allFindings.filter((finding) => finding.category === "financed_addon");
   const offsets = allFindings.filter((finding) => finding.category === "offset");
   const registry = (rules as { calculatorRegistry?: { default?: string; documentTypes?: Record<string, string> }; calculatorInputs?: Record<string, string[]> }).calculatorRegistry;
@@ -746,9 +759,9 @@ export function analyzeLocally(
     financingCost,
   };
   const claims = detectClaimsGeneric(text, allFindings, rateField.rateType === "deferred" ? null : rateField.value, netExtraCost);
-  const risk = calculateRisk(text, extracted.docType.type, allFindings, claims, confidence,
-    rateField.value !== null && rateField.confidence >= threshold && ["base", "promotional"].includes(rateField.rateRole) && rateField.rateType !== "deferred",
-    incompleteAnalysis);
+  const rateConfirmed = rateField.value !== null && rateField.confidence >= threshold && ["base", "promotional"].includes(rateField.rateRole) && rateField.rateType !== "deferred";
+  const canonicalFindings = collectRuleFindings(text, allFindings, extracted.docType.type, claims, rateConfirmed);
+  const risk = calculateRisk(text, extracted.docType.type, canonicalFindings, claims, confidence, rateConfirmed, incompleteAnalysis, true);
   const warnings: string[] = [];
   const seenWarnings = new Set<string>();
   const addWarning = (message: string) => {
@@ -771,10 +784,8 @@ export function analyzeLocally(
           : "";
     addWarning(finding.label + " detected." + amountText + " Evidence: " + normalizedEvidence(finding.source));
   }
-  for (const rule of rules.riskRules) {
-    if (!rule.pattern || rule.id === "high_apr") continue;
-    const evidence = findFirstEvidence(text, new RegExp(rule.pattern, "i"));
-    if (evidence) addWarning(rule.id.replace(/_/g, " ") + " term detected. Evidence: " + normalizedEvidence(evidence));
+  for (const finding of canonicalFindings.filter((item) => item.ruleOnly)) {
+    addWarning(finding.label + " term detected. Evidence: " + normalizedEvidence(finding.evidence));
   }
   if (extracted.interestRateIsConditional && extracted.interestRate !== null && rateField.value !== null) {
     addWarning("Conditional deferred APR of " + extracted.interestRate + "% is stated; it is not used as the standard payment rate. Evidence: " + normalizedEvidence(rateField.source ?? "deferred-interest clause"));
@@ -891,7 +902,7 @@ export function analyzeLocally(
     }
   }
 
-  const hiddenFees = allFindings.filter((finding) => !finding.negated && finding.category !== "offset").map((finding) => {
+  const hiddenFees = allFindings.filter((finding) => !finding.negated && !["offset", "protection"].includes(finding.category)).map((finding) => {
     if (finding.amountNotStated) return finding.label + ": amount not stated. Evidence: " + finding.source;
     if (finding.basis === "outstanding" && finding.percent !== null) {
       const startAmount = principal !== null ? principal * finding.percent / 100 : null;
@@ -918,9 +929,6 @@ export function analyzeLocally(
       insights.push("Implied nominal APR is " + cashPriceAnalysis.impliedNominalAPR.toFixed(1) + "%; IRR assumes the first payment is one " + schedule?.intervalUnit + " period after agreement.");
     }
   }
-  for (const offset of offsets.filter((finding) => finding.amount !== null || finding.totalImpact !== null)) {
-    insights.push("Identified " + offset.label.toLowerCase() + " of " + formatCurrency(Math.abs(offset.totalImpact ?? offset.amount ?? 0), currencyCode) + " as an offset. Evidence: " + offset.source + ".");
-  }
   if (addOnImpact) {
     insights.push("Financed add-ons total " + formatCurrency(addOnImpact.amount, currencyCode) + " and add " + formatCurrency(addOnImpact.paymentIncrease, currencyCode) + " per month, including " + formatCurrency(addOnImpact.interestIncrease, currencyCode) + " additional interest.");
   }
@@ -928,9 +936,6 @@ export function analyzeLocally(
     const taxBasis = tax.basis === "interest" && totalInterest !== null && tax.percent !== null
       ? " (" + tax.percent + "% of " + formatCurrency(totalInterest, currencyCode) + " interest)" : "";
     insights.push(tax.label + " adds " + formatCurrency(tax.totalImpact, currencyCode) + taxBasis + ".");
-  }
-  if (netExtraCost !== null && netExtraCost > 0 && netExtraCostPercent !== null) {
-    insights.push("Financing cost is " + formatCurrency(costBreakdown.interest, currencyCode) + " interest + " + formatCurrency(costBreakdown.taxes, currencyCode) + " taxes + " + formatCurrency(costBreakdown.fees, currencyCode) + " fees - " + formatCurrency(costBreakdown.offsets, currencyCode) + " offsets = " + formatCurrency(costBreakdown.financingCost, currencyCode) + ". Optional products totaling " + formatCurrency(costBreakdown.optionalProducts, currencyCode) + " are shown separately and excluded from financing cost.");
   }
   for (const check of reconciliations) insights.push(check.expression + (check.matched ? " matches." : " leaves a " + formatCurrency(Math.abs(check.difference), currencyCode) + " gap."));
   if (effectiveAPR !== null && rateField.value !== null && effectiveAPR > rateField.value + 0.01) {
@@ -947,7 +952,7 @@ export function analyzeLocally(
   }
   const advice = generateAdvice(risk.score, confidence, claims.some((claim) => claim.contradicted), risk.breakdown, confidenceIssues, threshold);
   const standardRateAvailable = rateField.value !== null && ["base", "promotional"].includes(rateField.rateRole) && rateField.rateType !== "deferred" && rateField.rateType !== "revolving";
-  const lateFeeFinding = allFindings.find((finding) => finding.id === "late_payment" && !finding.negated);
+  const lateFeeFinding = allFindings.find((finding) => finding.id === "late_payment" || finding.topicId === "late_payment");
   const penaltyRate = extracted.rateCandidates.find((candidate) => candidate.role === "penalty") ?? null;
   const amountCandidates = extracted.amountCandidates;
   const summary = selectedCalculator === "revolving" && emi !== null && totalPayment !== null && totalInterest !== null
@@ -961,6 +966,27 @@ export function analyzeLocally(
     : calculator.unsupportedReason
       ? "Document scan classified this as " + extracted.docType.label.toLowerCase() + ". " + calculator.unsupportedReason
       : "Document scan classified this as " + extracted.docType.label.toLowerCase() + ". Payment calculations are partial; missing inputs: " + (missingInputs.length ? missingInputs.join(", ") : "a supported payment model") + ".";
+  const addFinding = (id: string, label: string, category: string, severity: number, evidence: string, explanation: string, provenance: AnalysisFinding["provenance"] = "stated-in-document") => {
+    const position = text.indexOf(evidence);
+    if (canonicalFindings.some((finding) => finding.id === id && finding.evidence === evidence)) return;
+    canonicalFindings.push(canonicalFinding({ id, label, category, severity, amount: null, percent: null, basis: null,
+      frequency: null, conditions: [], source: evidence, position: Math.max(0, position), explanation,
+      totalImpact: null, negated: false, provenance, polarity: position >= 0 ? classifyPolarity(evidence) : "asserted" }));
+  };
+  for (const claim of claims.filter((item) => item.contradicted || item.signal)) {
+    addFinding("claim_contradiction_" + claim.id, claim.label, claim.contradicted ? "contradiction" : "pricing_access_signal", 3,
+      claim.source, claim.contradiction ?? claim.signal ?? "", claim.contradicted ? "computed" : "stated-in-document");
+  }
+  for (const check of reconciliations.filter((item) => !item.matched)) {
+    addFinding("reconciliation_mismatch_" + check.id, check.label, "mismatch", 2, check.source,
+      check.expression + " leaves a " + formatCurrency(Math.abs(check.difference), currencyCode) + " gap.", "computed");
+  }
+  for (const warning of warnings) {
+    const hasExisting = canonicalFindings.some((finding) => finding.category !== "protection" &&
+      ((finding.evidence.length > 0 && warning.includes(finding.evidence.replace(/[.!?;]+$/, ""))) || warning.includes(finding.label)));
+    if (!hasExisting) addFinding("unresolved_" + canonicalFindings.length, "Review required", "unresolved", 1, "", warning, "assumed");
+  }
+  canonicalFindings.sort((a, b) => b.severity - a.severity || a.position - b.position);
   const context: AnalysisContext = {
     id: createAnalysisId(),
     docType: extracted.docType,
@@ -973,6 +999,14 @@ export function analyzeLocally(
     statedEMI: extracted.statedEMI,
     installmentSchedule: schedule,
     principal,
+    findings: canonicalFindings,
+    protections: canonicalFindings.filter((finding) => finding.category === "protection"),
+    rateScenarios: extracted.rateCandidates.filter((candidate) => candidate.type === "variable" || candidate.type === "introductory" || candidate.role === "penalty").map((candidate) => ({
+      type: candidate.role === "penalty" ? "penalty" : candidate.type as "variable" | "introductory",
+      annualRate: candidate.value, source: candidate.source,
+      conditions: candidate.source.match(new RegExp(rules.polarity.conditionPattern, "gi")) ?? [],
+      provenance: candidate.period === "year" ? "stated-in-document" : "computed",
+    })),
     fees,
     addOns,
     taxes,
@@ -1009,15 +1043,7 @@ export function analyzeLocally(
     netDisbursed,
     deception: detectDeception(text),
     advice,
-    glossary: (() => {
-      const lexical = generateLocalGlossary(text);
-      const categories = (rules as { categoryGlossary?: Array<{ category: string; term: string; definition: string }> }).categoryGlossary ?? [];
-      for (const category of Array.from(new Set(allFindings.map((finding) => finding.category)))) {
-        const item = categories.find((candidate) => candidate.category === category);
-        if (item && !lexical.some((existing) => existing.term === item.term)) lexical.push({ term: item.term, definition: item.definition });
-      }
-      return lexical;
-    })(),
+    glossary: generateLocalGlossary(canonicalFindings),
     fairMarketComparison: standardRateAvailable && rateField.value !== null
       ? generateLocalFairMarket(rateField.value, currencyCode, extracted.docType.type, null)
       : undefined,
@@ -1028,8 +1054,17 @@ export function analyzeLocally(
       lateFeeAmount: lateFeeFinding?.amount ?? null,
       lateFeePercent: lateFeeFinding?.percent ?? null,
       lateFeeBasis: lateFeeFinding?.basis ?? null,
+      postGraceLateFeeAmount: allFindings.find((finding) => finding.id === "late_payment" && !finding.negated)?.amount ?? null,
       penaltyAPR: penaltyRate?.value ?? null,
       isAssumption: !lateFeeFinding && !penaltyRate,
+      source: lateFeeFinding?.evidence ?? lateFeeFinding?.source ?? penaltyRate?.source ?? null,
+      gracePeriodDays: (() => {
+        const source = lateFeeFinding?.evidence ?? lateFeeFinding?.source;
+        const match = source?.match(new RegExp(rules.scenarioPeriods.gracePattern, "i"));
+        const unit = match?.groups?.unit?.replace(/s$/, "").toLowerCase() as keyof typeof rules.scenarioPeriods.daysPerUnit;
+        return match?.groups?.count && unit ? Number(match.groups.count) * rules.scenarioPeriods.daysPerUnit[unit] : null;
+      })(),
+      conditions: lateFeeFinding?.conditions ?? [],
     },
     rawText: text,
   };

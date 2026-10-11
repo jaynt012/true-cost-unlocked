@@ -69,6 +69,9 @@ export interface ExtractedField<T = number> {
   needsReview: boolean;
 }
 
+export type FindingPolarity = "asserted" | "negated" | "waived/zero" | "conditional" | "hypothetical";
+export type FactProvenance = "stated-in-document" | "computed" | "derived" | "assumed";
+
 export interface CostFinding {
   id: string;
   label: string;
@@ -92,6 +95,20 @@ export interface CostFinding {
   taxPercent?: number | null;
   taxBasis?: string | null;
   groupId?: string;
+  polarity?: FindingPolarity;
+  clauseSpan?: [number, number];
+  evidence?: string;
+  provenance?: FactProvenance;
+  topicId?: string;
+  riskRuleIds?: string[];
+  ruleOnly?: boolean;
+}
+
+export interface AnalysisFinding extends CostFinding {
+  polarity: FindingPolarity;
+  clauseSpan: [number, number];
+  evidence: string;
+  provenance: FactProvenance;
 }
 
 export interface LineItemGroup {
@@ -153,6 +170,8 @@ export interface AnalysisContext {
   readonly currencyCode: SupportedCurrency;
   readonly principalField: ExtractedField<number>;
   readonly rateField: ExtractedField<number> & {
+    type: "fixed" | "variable" | "introductory" | "unspecified";
+    basis: "flat" | "reducing" | "unspecified";
     rateType: "reducing" | "flat" | "deferred" | "revolving" | "unknown";
     rateRole: "base" | "promotional" | "penalty" | "implied" | "unknown";
     basisAssumption: string | null;
@@ -161,6 +180,9 @@ export interface AnalysisContext {
   readonly statedEMI: ExtractedField<number>;
   readonly installmentSchedule: InstallmentSchedule | null;
   readonly principal: number | null;
+  readonly findings: AnalysisFinding[];
+  readonly protections: AnalysisFinding[];
+  readonly rateScenarios?: Array<{ type: "variable" | "introductory" | "penalty"; annualRate: number; source: string; conditions: string[]; provenance: FactProvenance }>;
   readonly fees: CostFinding[];
   readonly addOns: CostFinding[];
   readonly taxes: CostFinding[];
@@ -207,6 +229,10 @@ export interface AnalysisContext {
     lateFeeBasis: string | null;
     penaltyAPR: number | null;
     isAssumption: boolean;
+    source?: string | null;
+    gracePeriodDays?: number | null;
+    postGraceLateFeeAmount?: number | null;
+    conditions?: string[];
   };
   readonly rawText: string;
 }

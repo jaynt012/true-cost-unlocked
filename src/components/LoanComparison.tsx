@@ -8,15 +8,21 @@ interface LoanParams { amount: number | ""; rate: number | ""; duration: number 
 interface Props { context: AnalysisContext }
 
 export function LoanComparison({ context }: Props) {
+  const analyzedAmount = context.principal ?? "";
+  const analyzedRate = context.rateField.value !== null && context.rateField.rateType !== "deferred" ? context.rateField.value : "";
+  const analyzedDuration = context.termField.value ?? "";
   const fromContext = (): LoanParams => ({
-    amount: context.principal ?? "",
-    rate: context.rateField.value !== null && context.rateField.rateType !== "deferred" ? context.rateField.value : "",
-    duration: context.termField.value ?? "",
+    amount: analyzedAmount,
+    rate: analyzedRate,
+    duration: analyzedDuration,
   });
   const [loanA, setLoanA] = useState<LoanParams>(fromContext);
   const [loanB, setLoanB] = useState<LoanParams>({ amount: "", rate: "", duration: "" });
   const [compared, setCompared] = useState(false);
-  useEffect(() => { setLoanA(fromContext()); setCompared(false); }, [context]);
+  useEffect(() => {
+    setLoanA({ amount: analyzedAmount, rate: analyzedRate, duration: analyzedDuration });
+    setCompared(false);
+  }, [context.id, analyzedAmount, analyzedRate, analyzedDuration]);
 
   const resultFor = (loan: LoanParams) => loan.amount !== "" && loan.rate !== "" && loan.duration !== ""
     ? calculateEMI(loan.amount, loan.rate, loan.duration)

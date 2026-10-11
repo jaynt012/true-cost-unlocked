@@ -2,6 +2,38 @@
   "segmentation": {
     "abbreviations": ["Rs.", "Inc.", "No.", "approx.", "vs.", "e.g.", "i.e.", "etc.", "Ltd.", "Mr.", "Mrs.", "Dr.", "St.", "U.S.", "U.K."]
   },
+  "polarity": {
+    "negators": ["\\b(?:no|not|none|never|neither|nor)\\b", "\\b(?:don['’]t|doesn['’]t|won['’]t|cannot|can['’]t)\\b", "\\bwithout(?!\\s+(?:notice|consent|permission|agreement))\\b|\\bfree\\s+of\\b", "\\b(?:waiv(?:e|ed)(?!\\s+(?:(?:your|the|any)\\s+)?(?:rights?|class))|exempt)\\b"],
+    "zeroPatterns": ["(?:[$₹€£¥]|\\b(?:USD|INR|EUR|GBP|Rs\\.?))\\s*0(?:\\.0+)?(?![\\d.])", "\\b(?:zero|nil|none|waived)\\b", "\\b0(?:\\.0+)?\\s*%"],
+    "scopeBreaks": [",?\\s*\\b(?:but|however|only|except|instead|yet|then|thereafter)\\b", ",(?!\\s*(?:or|and)\\b)", "\\band\\s+(?=(?:(?:we|you|they|it)\\s+)?(?:no\\b|not\\b|do\\s+not|don['’]t))"],
+    "nonNegatingPatterns": ["\\bnot\\s+refundable\\b", "\\bnot\\s+optional\\b", "\\b(?:rights?|class[- ]action)[^.;]{0,60}\\bwaived\\b"],
+    "laterAmountPattern": "\\b(?:then|thereafter|afterwards|subsequently|after\\s+(?:the\\s+)?(?:first\\s+)?\\d+|following\\s+(?:the\\s+)?grace)\\b",
+    "conditionalPatterns": ["\\b(?:if|unless|when|upon|after|subject\\s+to|may|might|could)\\b"],
+    "hypotheticalPatterns": ["\\b(?:for\\s+example|suppose|hypothetically|illustration|illustrative)\\b"],
+    "conditionPattern": "\\b(?:if|unless|when|provided that|only if|after|upon|following|during|for the first|within)\\s+[^.;]+"
+  },
+  "protectionPolicy": { "inherentRiskReductionPerTerm": 1, "maximumInherentRiskReduction": 5 },
+  "scenarioPeriods": { "gracePattern": "\\b(?:during|for|within)\\s+(?:the\\s+)?(?:first\\s+)?(?<count>\\d+)\\s*(?<unit>days?|weeks?|months?|years?)\\b", "daysPerUnit": { "day": 1, "week": 7, "month": 30, "year": 365 } },
+  "rateAttributes": {
+    "types": [
+      { "type": "variable", "pattern": "\\b(?:variable|adjustable|floating)\\b|(?:linked|tied)\\s+to\\s+(?:the\\s+)?(?:prime|benchmark)" },
+      { "type": "introductory", "pattern": "\\b(?:introductory|promotional|teaser)\\b" },
+      { "type": "fixed", "pattern": "\\bfixed(?:[- ]rate|\\s+(?:apr|interest|rate))\\b|\\b(?:apr|interest(?:\\s+rate)?|rate)\\b[^.;]{0,20}\\bfixed\\b" },
+      { "type": "fixed", "pattern": "\\brate\\b[^.;]{0,45}\\b(?:will\\s+not|does\\s+not|won['’]t|never)\\s+(?:change|increase)\\b", "acceptedPolarities": ["negated"] }
+    ],
+    "flatPattern": "\\bflat\\b|add[- ]on\\s+(?:rate|interest)|on\\s+(?:the\\s+)?original\\s+principal",
+    "reducingPattern": "\\breducing\\b|declining\\s+(?:balance|principal)|on\\s+(?:the\\s+)?(?:daily\\s+)?balance",
+    "aprPattern": "\\b(?:apr|annual\\s+percentage\\s+rate)\\b",
+    "flatPricingProducts": ["payday", "gold_loan", "rent_to_own"]
+  },
+  "protectionCatalog": [
+    { "id": "fixed_rate", "label": "Fixed rate", "pattern": "\\bfixed(?:[- ]rate|\\s+(?:apr|interest|rate))\\b|\\b(?:apr|interest(?:\\s+rate)?|rate)\\b[^.;]{0,20}\\bfixed\\b", "explanation": "The stated rate is fixed rather than variable.", "acceptedPolarities": ["asserted"] },
+    { "id": "fixed_rate", "label": "Fixed rate", "pattern": "\\brate\\b[^.;]{0,45}\\b(?:will\\s+not|does\\s+not|won['’]t|never)\\s+(?:change|increase)\\b", "explanation": "The agreement says the rate will not change.", "acceptedPolarities": ["negated"] },
+    { "id": "rate_lock", "label": "Rate lock", "pattern": "\\brate\\s+(?:lock(?:ed)?|guarantee)\\b", "explanation": "A documented lock protects the quoted rate for the stated period.", "acceptedPolarities": ["asserted", "conditional"] },
+    { "id": "cancellation_window", "label": "Cancellation window", "pattern": "\\b(?:cancel|cancellation|withdraw|cooling[- ]off|rescind)\\b[^.;]{0,70}\\b\\d+\\s*(?:days?|hours?)\\b", "disallowedPatterns": ["\\b(?:cannot|can\\s+not|may\\s+not|not\\s+(?:allowed|permitted)\\s+to|unable\\s+to|don['’]t|do\\s+not)\\s+(?:cancel|withdraw|rescind)\\b"], "explanation": "A stated cancellation or cooling-off window can allow withdrawal under the listed conditions.", "acceptedPolarities": ["asserted", "negated", "waived/zero", "conditional"] },
+    { "id": "grace_period", "label": "Grace period", "pattern": "\\bgrace\\s+period\\b", "explanation": "The stated grace period limits charges during the documented window.", "acceptedPolarities": ["asserted", "waived/zero", "conditional"] },
+    { "id": "arbitration", "label": "No compulsory arbitration", "pattern": "\\b(?:binding\\s+|mandatory\\s+)?arbitration\\b", "explanation": "The agreement excludes the stated arbitration requirement.", "acceptedPolarities": ["negated", "waived/zero"] }
+  ],
   "monetaryBases": [
     { "id": "interest", "pattern": "(?:on|of)\\s+(?:the\\s+)?(?:total\\s+)?interest(?:\\s+component)?|interest\\s+component" },
     { "id": "outstanding", "pattern": "(?:of|on)\\s+(?:the\\s+)?(?:outstanding|remaining)\\s+(?:principal|balance)|outstanding\\s+(?:principal|balance)" },
@@ -98,7 +130,8 @@
     { "id": "origination", "label": "Origination fee", "patterns": ["origination\\s+fee", "loan\\s+setup\\s+fee"], "category": "upfront_fee", "severity": 2, "explanation": "Upfront charge for creating or setting up the credit." },
     { "id": "processing", "label": "Processing fee", "patterns": ["processing\\s+fee", "administrative\\s+fee"], "category": "upfront_fee", "severity": 2, "explanation": "Upfront processing or administration charge." },
     { "id": "convenience", "label": "Convenience fee", "patterns": ["convenience\\s+fee", "transaction\\s+fee"], "category": "recurring_fee", "severity": 2, "explanation": "Charge applied for processing a payment or transaction." },
-    { "id": "late_payment", "label": "Late or missed-payment fee", "patterns": ["late\\s+(?:payment|installment|instalment)\\s+fee", "missed\\s+(?:payment|installment|instalment)\\s+fee", "overdue\\s+fee"], "category": "penalty", "severity": 3, "explanation": "Charge triggered by a late or missed payment." },
+    { "id": "late_payment", "label": "Late or missed-payment fee", "patterns": ["late\\s+(?:(?:payment|installment|instalment)\\s+)?fee", "missed\\s+(?:payment|installment|instalment)\\s+fee", "overdue\\s+fee"], "category": "penalty", "severity": 3, "explanation": "Charge triggered by a late or missed payment." },
+    { "id": "general_fees", "label": "General fees", "fallbackOnly": true, "patterns": ["\\b(?:hidden|extra|additional)\\s+(?:fees?|charges?)\\b", "\\bfees?\\s*:\\s*(?:nil|none|zero)\\b", "\\bfee\\s+of\\s+any\\s+kind\\b"], "category": "upfront_fee", "severity": 2, "explanation": "The clause describes a general transaction charge." },
     { "id": "reschedule", "label": "Rescheduling fee", "patterns": ["reschedul(?:e|ing)\\s+fee"], "category": "penalty", "severity": 2, "explanation": "Charge for moving a payment date." },
     { "id": "annual", "label": "Annual fee", "patterns": ["annual\\s+fee", "yearly\\s+fee"], "category": "recurring_fee", "severity": 2, "explanation": "Recurring annual account charge." },
     { "id": "balance_transfer", "label": "Balance-transfer fee", "patterns": ["balance\\s+transfer\\s+fee"], "category": "upfront_fee", "severity": 2, "explanation": "Charge for transferring a balance." },
@@ -114,7 +147,7 @@
     { "id": "collateral_recovery", "label": "Collateral repossession or auction", "patterns": ["repossession|repossess(?:ed|ion)?", "seiz(?:e|ure)\\s+(?:of\\s+)?(?:the\\s+)?(?:pledged\\s+)?(?:collateral|asset|vehicle|property|gold|goods)", "auction(?:s|ed|ing)?\\s+(?:of\\s+)?(?:the\\s+)?(?:pledged\\s+)?(?:collateral|asset|vehicle|property|gold|goods)", "(?:collateral|asset|vehicle|property|gold|goods)\\s+(?:may\\s+be\\s+)?(?:seized|sold|auctioned|recovered|repossessed)", "(?:pledged\\s+)?(?:collateral|asset|vehicle|property|gold|goods)[^.;]{0,45}\\b(?:seized|sold|auctioned|recovered|repossessed)\\b"], "category": "collateral_recovery", "severity": 5, "minimumRiskBand": "high", "riskReason": "The lender may seize or sell collateral after default.", "explanation": "The agreement permits recovery or sale of pledged property after a missed-payment trigger." },
     { "id": "acceleration_cross_default", "label": "Acceleration or cross-default", "patterns": ["accelerat(?:e|ed|ion)\\s+(?:the\\s+)?(?:entire\\s+)?balance", "cross[- ]default", "entire\\s+balance\\s+becomes\\s+(?:immediately\\s+)?due"], "category": "default_terms", "severity": 4, "minimumRiskBand": "medium", "riskReason": "A default can make a larger balance due or trigger default across agreements.", "explanation": "A missed obligation may accelerate repayment or trigger default under another agreement." },
     { "id": "ownership_after_final_payment", "label": "Ownership only after final payment", "patterns": ["ownership\\s+(?:transfers?|vests?)\\s+only\\s+after\\s+(?:the\\s+)?(?:final|last)\\s+payment", "own(?:er|ership)?\\s+(?:the\\s+)?(?:item|property|asset|vehicle|goods)?\\s*only\\s+after\\s+(?:all\\s+)?payments?", "title\\s+(?:transfers?|passes)\\s+only\\s+after\\s+(?:the\\s+)?(?:final|last)\\s+payment", "become\\s+(?:the\\s+)?owner\\s+only\\s+after\\s+(?:the\\s+)?(?:final|last)\\s+payment", "ownership[^.;]{0,70}\\b(?:after|once|when)\\s+(?:all|the\\s+last|the\\s+final)\\s+(?:scheduled\\s+)?payments?\\s+(?:are\\s+)?(?:made|paid|completed)", "(?:asset|item|property|vehicle|goods|title|ownership)[^.;]{0,70}\\b(?:transfers?|passes|vests?)[^.;]{0,70}\\b(?:after|once|when)\\b[^.;]{0,70}\\b(?:all|final|last)\\s+(?:scheduled\\s+)?(?:payments?|installments?|instalments?)\\b[^.;]{0,30}\\b(?:made|paid|completed)\\b"], "category": "ownership_terms", "severity": 3, "minimumRiskBand": "medium", "riskReason": "The buyer does not own the item until all required payments are made.", "explanation": "Ownership is conditional on completing the full payment schedule." },
-    { "id": "no_credit_check", "label": "No-credit-check marketing", "patterns": ["no\\s+credit\\s+(?:check|needed|needed|required)|without\\s+a\\s+credit\\s+check"], "category": "pricing_access_signal", "severity": 3, "riskReason": "No-credit-check marketing can accompany high-cost or restrictive terms; verify the total payable and ownership conditions.", "explanation": "No-credit-check access is a pricing-risk signal and does not establish that the offer is affordable." },
+    { "id": "no_credit_check", "polarityOverride": "asserted", "label": "No-credit-check marketing", "patterns": ["no\\s+credit\\s+(?:check|needed|needed|required)|without\\s+a\\s+credit\\s+check"], "category": "pricing_access_signal", "severity": 3, "riskReason": "No-credit-check marketing can accompany high-cost or restrictive terms; verify the total payable and ownership conditions.", "explanation": "No-credit-check access is a pricing-risk signal and does not establish that the offer is affordable." },
     { "id": "early_purchase_option", "label": "Early-purchase option", "patterns": ["early[- ]purchase\\s+option", "option\\s+to\\s+(?:purchase|buy)\\s+(?:the\\s+)?(?:item|property|asset)?\\s*early", "early\\s+buy[- ]out"], "category": "contract_option", "severity": 1, "explanation": "The agreement describes an option to purchase before the scheduled end." },
     { "id": "penal_rate", "label": "Penal or overdue interest rate", "patterns": ["penal\\s+interest", "penalty\\s+(?:apr|rate|interest)", "default\\s+(?:apr|rate|interest)", "overdue\\s+(?:apr|rate|interest)", "late\\s+(?:payment\\s+)?interest", "delay\\s+interest"], "category": "penalty", "severity": 4, "minimumRiskBand": "high", "riskReason": "The stated rate applies because of late payment or default, not to the ordinary balance.", "explanation": "This is a conditional default rate and is separate from the agreement's base rate." },
     { "id": "upfront_deduction", "label": "Amount deducted from proceeds", "patterns": ["(?:deduct(?:ed|ing)?|withheld)\\s+(?:upfront\\s+)?from\\s+(?:the\\s+)?(?:loan\\s+)?(?:proceeds|disbursal|disbursement|advance)", "upfront\\s+deduction\\s+from\\s+(?:the\\s+)?(?:proceeds|disbursal|disbursement)"], "category": "upfront_fee", "severity": 3, "suppressWhen": ["(?:processing|origination|administrative)\\s+fee"], "explanation": "An upfront amount is withheld from the cash proceeds even if the loan balance remains unchanged." },
@@ -138,12 +171,12 @@
   "riskRules": [
     { "id": "claim_contradiction", "category": "claims", "weight": 20, "pattern": "" },
     { "id": "deferred_interest", "category": "pricing", "weight": 20, "pattern": "deferred\\s+interest|retroactive(?:ly)?" },
-    { "id": "arbitration_waiver", "category": "legal", "weight": 15, "pattern": "waive[\\s\\S]{0,120}class action|binding arbitration" },
+    { "id": "arbitration_waiver", "category": "legal", "weight": 15, "pattern": "waive[\\s\\S]{0,120}class action|binding arbitration|class[- ]action[^.;]{0,80}rights?[^.;]{0,50}waived" },
     { "id": "automatic_optional_addon", "category": "claims", "weight": 15, "pattern": "automatically added[\\s\\S]{0,100}(?:opt out|unless you opt)" },
     { "id": "data_sharing", "category": "privacy", "weight": 8, "pattern": "share your data with partners|share data with partners" },
     { "id": "credit_reporting", "category": "credit", "weight": 8, "pattern": "report missed payments? to credit bureaus" },
     { "id": "penalty_apr", "category": "pricing", "weight": 15, "pattern": "\\bpenalty\\s*apr\\b" },
-    { "id": "variable_rate", "category": "pricing", "weight": 8, "pattern": "\\bvariable\\b[\\s\\S]{0,80}\\bprime\\s+rate\\b" },
+    { "id": "variable_rate", "category": "pricing", "weight": 8, "pattern": "\\b(?:variable|adjustable|floating)\\b[^.;]{0,80}\\b(?:prime\\s+rate|interest|apr|rate)\\b" },
     { "id": "indefinite_penalty", "category": "pricing", "weight": 10, "pattern": "\\b(?:penalty|apr|rate)\\b[\\s\\S]{0,80}\\bindefinitely\\b|\\bindefinitely\\b[\\s\\S]{0,80}\\b(?:penalty|apr|rate)\\b" },
     { "id": "promotional_rate", "category": "pricing", "weight": 5, "pattern": "\\b(?:introductory|promotional)\\s*(?:apr|rate)?\\b" },
     { "id": "high_apr", "category": "pricing", "weight": 15, "pattern": "" },
