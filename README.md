@@ -49,6 +49,19 @@ VITE_OPENROUTER_API_KEY=your_openrouter_api_key
 
 For local development, put it in a `.env.local` file at the repo root. On Netlify, add the same key in Site settings > Environment variables, then redeploy.
 
+## Analysis rules
+
+Detection is configured in `src/data/analysisRules.json`:
+
+- `polarity` defines negators, clause scopes, waivers, conditions, and hypothetical language.
+- `protectionCatalog` and `findingsUI` define positive terms and their shared explanation.
+- `rateAttributes` separates fixed/variable/introductory types from flat/reducing calculation bases.
+- `scenarioPeriods` defines the periods used by grace-window scenarios.
+- `riskScoring` sets noisy-OR severity weights and score bands; catalog `minimumRiskBand` values set configured floors.
+- `textNormalization`, `periodRoles`, `plausibility`, and `legalStructure` configure OCR repair, duration roles, conflicting amounts, and legal references.
+
+The canonical findings list drives diagnosis, glossary, risk, and page panels. Optional OpenRouter insights receive structured facts with provenance and verified evidence; validation strips unsupported claims. AI output never changes financial calculations or risk scores.
+
 ## Scripts
 
 ```bash
