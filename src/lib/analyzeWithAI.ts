@@ -327,7 +327,16 @@ export async function enhanceAnalysisWithAI(context: AnalysisContext, options: A
   ], true, options);
   const parsed = parseJsonObject(response);
   if (!parsed) throw new Error("OpenRouter returned an unreadable insights response.");
-  return validateAIEnhancement(context, parsed);
+  const enhancement = validateAIEnhancement(context, parsed);
+  if (hasActionableFindings(context) && !enhancement.aiCounterOfferEmail) {
+    try {
+      const email = await regenerateCounterOfferEmail(context, options);
+      if (email) enhancement.aiCounterOfferEmail = email;
+    } catch {
+      // Keep the verified insights available when a separate email draft fails.
+    }
+  }
+  return enhancement;
 }
 
 export async function regenerateCounterOfferEmail(context: AnalysisContext, options: AIRequestOptions = {}): Promise<string> {
