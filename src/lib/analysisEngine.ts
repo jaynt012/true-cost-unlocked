@@ -87,7 +87,9 @@ function isCompleteMoneyMatch(text: string, match: RegExpMatchArray): boolean {
 export function numericClauseAt(text: string, position: number): Clause {
   const clause = clauseAt(text, position);
   const lineStart = text.lastIndexOf("\n", position - 1) + 1;
-  if (/^\s*\d+(?:\.\d+)*[.)]?\s+[A-Z]/.test(text.slice(lineStart, position))) return clause;
+  const lineEnd = text.indexOf("\n", position);
+  const line = text.slice(lineStart, lineEnd < 0 ? text.length : lineEnd);
+  if (/^\s*\d+(?:\.\d+)*[.)]?\s+[A-Z]/.test(line)) return clause;
   if (text.slice(lineStart, position).trim() && !new RegExp(`^(?:${CURRENCY_TOKEN})\\s*$`, "i").test(text.slice(lineStart, position).trim())) return clause;
   const previousEnd = lineStart > 0 ? lineStart - 1 : 0;
   const previousStart = text.lastIndexOf("\n", previousEnd - 1) + 1;
